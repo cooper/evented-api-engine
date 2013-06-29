@@ -1,4 +1,4 @@
-evented-api-engine
-==================
+Evented::API::Engine
+====================
 
 an evented API manager for Perl applications
