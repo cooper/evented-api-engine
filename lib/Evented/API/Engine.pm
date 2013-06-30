@@ -15,7 +15,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax;
 
-our $VERSION = '0.2';
+our $VERSION = '0.3';
 
 # create a new API Engine.
 #
@@ -43,10 +43,11 @@ sub new {
     
     # create the API Engine.
     my $api = bless {
-        mod_inc => $inc
+        mod_inc  => $inc,
+        features => []
     }, $class;
     
-    $api->_configure_api();
+    $api->_configure_api(%opts);
     return $api;
 }
 
@@ -117,6 +118,8 @@ sub load_module {
     
     # TODO: load the module.
     
+    # TODO: add global API module methods.
+    
     return 1;
 }
 
@@ -130,10 +133,14 @@ sub unload_module {
 
 # store a piece of data specific to this API Engine.
 sub store {
+    my ($api, $key, $value) = @_;
+    $api->{store}{$key} = $value;
 }
 
 # fetch a piece of data specific to this API Engine.
 sub retrieve {
+    my ($api, $key) = @_;
+    return $api->{store}{$key};
 }
 
 #######################
@@ -152,13 +159,25 @@ sub add_module_methods {
 ### FEATURES ###
 ################
 
+# enable a feature.
 sub add_feature {
+    my ($api, $feature) = @_;
+    push @{ $api->{features} }, lc $feature;
 }
 
+# disable a feature.
 sub remove_feature {
+    my ($api, $feature) = @_;
+    @{ $api->{features} } = grep { $_ ne lc $feature } @{ $api->{features} };
 }
 
+# true if a feature is present.
 sub has_feature {
+    my ($api, $feature) = @_;
+    foreach (@{ $api->{features} }) {
+        return 1 if $_ eq lc $feature;
+    }
+    return;
 }
 
 1;
