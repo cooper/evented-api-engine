@@ -76,9 +76,9 @@ sub _configure_api {
     return 1;
 }
 
-#########################
-### MODULE MANAGEMENT ###
-#########################
+#######################
+### LOADING MODULES ###
+#######################
 
 # load modules initially, i.e. from a configuration file.
 # returns the module names that loaded.
@@ -180,6 +180,8 @@ sub load_module {
     }
     my $pkg = $info->{name}{package};
     
+    # TODO: load required modules here.
+    
     # make the package a child of Evented::API::Module.
     make_child($pkg, 'Evented::API::Module'); 
     
@@ -201,7 +203,7 @@ sub load_module {
     # probably an error, or the module just didn't return $mod.
     if (!$return || $return != $mod) {
         $api->_log('mod_load_fail', $mod_name, $@ ? $@ : 'Package did not return module object');
-        #class_unload();
+        # hax::package_unload();
         return;
     }
     
@@ -211,6 +213,10 @@ sub load_module {
     $api->_log('mod_load_comp', $mod_name);
     return $mod_name;
 }
+
+#########################
+### UNLOADING MODULES ###
+#########################
 
 # unload a module.
 sub unload_module {
