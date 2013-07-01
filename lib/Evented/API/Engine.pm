@@ -8,7 +8,7 @@ use strict;
 use 5.010;
 
 use Carp;
-use JSON;
+use JSON qw(decode_json);
 
 use Evented::Object;
 use parent 'Evented::Object';
@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax;
 
-our $VERSION = '0.4';
+our $VERSION = '0.5';
 
 # create a new API Engine.
 #
@@ -29,18 +29,12 @@ our $VERSION = '0.4';
 sub new {
     my ($class, %opts) = @_;
     
-    # Determine the include directories.
-    
+    # several search directories.
     my $inc;
-    
-    # mod_inc is present and an array reference.
     if (defined $opts{mod_inc} && ref $opts{mod_inc} eq 'ARRAY') { $inc = $opts{mod_inc} }
     
-    # mod_inc is present but not an array reference.
-    elsif (defined $opts{mod_inc}) { $inc = [ $opts{mod_inc} ] }
-    
-    # nothing; use default include directories.
-    else { $inc = ['.', 'mod'] }
+    elsif (defined $opts{mod_inc}) { $inc = [ $opts{mod_inc} ] } # single search directory
+    else { $inc = ['.', 'mod'] }                                 # no search directories
     
     # create the API Engine.
     my $api = bless {
@@ -87,8 +81,15 @@ sub _configure_api {
 #########################
 
 # load modules initially, i.e. from a configuration file.
-# returns the number of modules that loaded successfully.
+# returns the module names that loaded.
 sub load_modules_initially {
+    my ($api, @mod_names) = @_;
+    $api->load_modules(@mod_names);
+}
+
+# load several modules in a group.
+# returns the module names that loaded.
+sub load_modules {
     my ($api, @mod_names) = @_;
     $api->{load_block} = { in_block => 1 };
     
@@ -97,13 +98,14 @@ sub load_modules_initially {
     push @results, $api->load_module($_) foreach @mod_names;
     
     delete $api->{load_block};
-    return scalar grep { $_ } @results;
+    return grep { $_ } @results;
 }
 
 # load a module.
 sub load_module {
     my ($api, $mod_name, $dirs) = @_;
-    $api->_log('mod_load_info', $mod_name, 'Begin load process') unless $dirs;
+    return unless $mod_name;
+    $api->_log('mod_load_begn', $mod_name) unless $dirs;
     
     # we are in a load block.
     # we are not in the middle of loading this particular module.
@@ -134,7 +136,7 @@ sub load_module {
         return;
     }
     
-    $api->_log('mod_load_info', $mod_name, "Looking in '$search_dir'");
+    $api->_log('mod_load_info', $mod_name, "Searching for module in: $search_dir/");
     
     # TODO: add support for __DATA__ JSON and single-file modules.
     
@@ -155,13 +157,21 @@ sub load_module {
         return;
     }
     
+    # read module.json.
+    # FIXME: 'or return' ends loading unexpectedly if $short_mod_file.json is an empty file.
+    my $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$short_mod_file.json") or return;
+    if (not $info = eval { decode_json($info) }) {
+        $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
+        return;
+    }
+    
     # TODO: load the module.
     
     # TODO: add global API module methods.
     
     
     $api->_log('mod_load_comp', $mod_name);
-    return 1;
+    return $mod_name;
 }
 
 # unload a module.
@@ -221,16 +231,18 @@ sub has_feature {
     return;
 }
 
-###########################
-### ERRORS AND WARNINGS ###
-###########################
+################
+### INTERNAL ###
+################
 
-sub _log (@) {
+# API log.
+sub _log {
     my ($api, $type, $syn) = (shift, shift);
     given ($type) {
+        when ('mod_load_begn') { $syn = "%s(%s): BEGINNING MODULE LOAD"             }
         when ('mod_load_info') { $syn = "%s(%s): %s"                                }
-        when ('mod_load_fail') { $syn = "%s(%s): FAILED TO LOAD: %s"                }
-        when ('mod_load_comp') { $syn = "%s(%s): Module loaded successfully"        }
+        when ('mod_load_fail') { $syn = "%s(%s): *** FAILED TO LOAD *** %s"         }
+        when ('mod_load_comp') { $syn = "%s(%s): MODULE LOADED SUCCESSFULLY"        }
     }
     return unless defined $syn;
     
@@ -240,6 +252,25 @@ sub _log (@) {
     
     $api->fire_event(log => $msg);
     return;
+}
+
+# read contents of file.
+sub _slurp {
+    my ($api, $log_type, $mod_name, $file_name) = @_;
+    
+    # open file.
+    my $fh;
+    if (!open $fh, '<', $file_name) {
+        $api->_log($log_type, $mod_name, "$file_name could not be opened for reading");
+        return;
+    }
+    
+    # read and close file.
+    local $/ = undef;
+    my $data = <$fh>;
+    close $fh;
+    
+    return $data;
 }
 
 1;
