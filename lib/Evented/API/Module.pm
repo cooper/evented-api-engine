@@ -11,4 +11,9 @@ use parent 'Evented::Object';
 
 our $VERSION = $Evented::API::Engine::VERSION;
 
+sub new {
+    my ($class, %opts) = @_;
+    return bless \%opts, $class;
+}
+
 1;

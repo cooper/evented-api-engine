@@ -14,9 +14,9 @@ use Evented::Object;
 use parent 'Evented::Object';
 
 use Evented::API::Module;
-use Evented::API::Hax;
+use Evented::API::Hax qw(set_symbol make_child);
 
-our $VERSION = '0.5';
+our $VERSION = '0.6';
 
 # create a new API Engine.
 #
@@ -122,6 +122,8 @@ sub load_module {
         
     }
     
+    # TODO: check here if the module is loaded already.
+    
     # if there is no list of search directories, we have not attempted any loading.
     if (!$dirs) {
         return $api->load_module($mod_name, [ @{ $api->{mod_inc} } ]);
@@ -143,7 +145,7 @@ sub load_module {
     # module does not exist in this search directory.
     # try the next search directory.
     my $mod_name_file  = $mod_name; $mod_name_file =~ s/::/\//g;
-    my $short_mod_file = pop @{ [ split '/', $mod_name_file ] };
+    my $mod_last_name  = pop @{ [ split '/', $mod_name_file ] };
     my $mod_dir        = "$search_dir/$mod_name_file.module";
     if (!-d $mod_dir) {
         return $api->load_module($mod_name, $dirs);
@@ -151,21 +153,57 @@ sub load_module {
     
     # we located the module directory.
     # now we must ensure all required files are present.
-    foreach my $file ("$short_mod_file.json", "$short_mod_file.pm") {
+    foreach my $file ("$mod_last_name.json", "$mod_last_name.pm") {
         next if -f "$mod_dir/$file";
         $api->_log('mod_load_fail', $mod_name, "Mandatory file '$file' not present");
         return;
     }
     
     # read module.json.
-    # FIXME: 'or return' ends loading unexpectedly if $short_mod_file.json is an empty file.
-    my $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$short_mod_file.json") or return;
+    # FIXME: 'or return' ends loading unexpectedly if $mod_last_name.json is an empty file.
+    my $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$mod_last_name.json") or return;
     if (not $info = eval { decode_json($info) }) {
         $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
         return;
     }
     
-    # TODO: load the module.
+    # check for required JSON values.
+    foreach my $require (
+        [   'name.short',   $info->{name}{short}    ],
+        [   'name.full',    $info->{name}{full}     ],
+        [   'name.package', $info->{name}{package}  ],
+        [   'version',      $info->{version}        ]
+    ) {
+        next if defined $require->[1];
+        $api->_log('mod_load_fail', $mod_name, "Mandatory info '$$require[0]' not present");
+        return;
+    }
+    my $pkg = $info->{name}{package};
+    
+    # make the package a child of Evented::API::Module.
+    make_child($pkg, 'Evented::API::Module'); 
+    
+    # create the module object.
+    $info->{name}{last} = $mod_last_name;
+    my $mod = $pkg->new(%$info);
+    
+    # export API Engine and module objects.
+    set_symbol($pkg, {
+        '$api'      => $api,
+        '$mod'      => $mod,
+        '$VERSION'  => $info->{version}
+    });
+        
+    # load the module.
+    $api->_log('mod_load_info', $mod_name, 'Evaluating main package');
+    my $return = do "$mod_dir/$mod_last_name.pm";
+    
+    # probably an error, or the module just didn't return $mod.
+    if (!$return || $return != $mod) {
+        $api->_log('mod_load_fail', $mod_name, $@ ? $@ : 'Package did not return module object');
+        #class_unload();
+        return;
+    }
     
     # TODO: add global API module methods.
     
@@ -238,12 +276,13 @@ sub has_feature {
 # API log.
 sub _log {
     my ($api, $type, $syn) = (shift, shift);
-    given ($type) {
-        when ('mod_load_begn') { $syn = "%s(%s): BEGINNING MODULE LOAD"             }
-        when ('mod_load_info') { $syn = "%s(%s): %s"                                }
-        when ('mod_load_fail') { $syn = "%s(%s): *** FAILED TO LOAD *** %s"         }
-        when ('mod_load_comp') { $syn = "%s(%s): MODULE LOADED SUCCESSFULLY"        }
-    }
+    my %syntax = (
+        mod_load_begn => "%s(%s): BEGINNING MODULE LOAD",
+        mod_load_info => "%s(%s): %s",
+        mod_load_fail => "%s(%s): *** FAILED TO LOAD *** %s",
+        mod_load_comp => "%s(%s): MODULE LOADED SUCCESSFULLY"
+    );
+    $syn = $syntax{$type};
     return unless defined $syn;
     
     my $sub = (caller 1)[3];
