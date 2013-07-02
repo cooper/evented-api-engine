@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child);
 
-our $VERSION = '0.6';
+our $VERSION = '0.7';
 
 # create a new API Engine.
 #
@@ -122,7 +122,11 @@ sub load_module {
         
     }
     
-    # TODO: check here if the module is loaded already.
+    # check here if the module is loaded already.
+    if ($api->module_loaded($mod_name)) {
+        $api->_log('mod_load_fail', $mod_name, 'Module already loaded');
+        return;
+    }
     
     # if there is no list of search directories, we have not attempted any loading.
     if (!$dirs) {
@@ -141,6 +145,7 @@ sub load_module {
     $api->_log('mod_load_info', $mod_name, "Searching for module in: $search_dir/");
     
     # TODO: add support for __DATA__ JSON and single-file modules.
+    # rethink: how about wikifier-style variables?
     
     # module does not exist in this search directory.
     # try the next search directory.
@@ -160,8 +165,8 @@ sub load_module {
     }
     
     # read module.json.
-    # FIXME: 'or return' ends loading unexpectedly if $mod_last_name.json is an empty file.
-    my $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$mod_last_name.json") or return;
+    my $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$mod_last_name.json");
+    return if not defined $info;
     if (not $info = eval { decode_json($info) }) {
         $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
         return;
@@ -180,7 +185,11 @@ sub load_module {
     }
     my $pkg = $info->{name}{package};
     
-    # TODO: load required modules here.
+    
+    # load required modules here.
+    $api->_load_module_requirements($info);
+    
+    # TODO: add global API module methods here.
     
     # make the package a child of Evented::API::Module.
     make_child($pkg, 'Evented::API::Module'); 
@@ -207,11 +216,44 @@ sub load_module {
         return;
     }
     
-    # TODO: add global API module methods.
+    # fire module initialize.
+    # TODO: built in callback will call 'init' in the module package.
+    $mod->fire_event('initialize');
     
+    # add to loaded modules.
+    push @{ $api->{loaded} }, $mod;
     
     $api->_log('mod_load_comp', $mod_name);
     return $mod_name;
+}
+
+# loads the modules a module depends on.
+sub _load_module_requirements {
+    my ($api, $info) = @_;
+    
+    # module does not depend on any other modules.
+    return unless $info->{depends}{modules};
+    return unless ref $info->{depends}{modules} eq 'ARRAY';
+    
+    foreach my $mod_name (@{ $info->{depends}{modules} }) {
+    
+        # dependency already loaded.
+        if ($api->module_loaded($mod_name)) {
+            $api->_log('mod_load_info', $mod_name, 'Skipping already loaded dependency');
+            next;
+        }
+        
+        # prevent endless loops.
+        if ($info->{name}{full} eq $mod_name) {
+            $api->_log('mod_load_info', $mod_name, 'MODULE DEPENDS ON ITSELF?!?!');
+            next;
+        }
+        
+        # load the dependency.
+        $api->_log('mod_load_info', $mod_name, 'Loading dependency of '.$info->{name}{full});
+        $api->load_module($mod_name);
+        
+    }
 }
 
 #########################
@@ -220,6 +262,27 @@ sub load_module {
 
 # unload a module.
 sub unload_module {
+    # TODO: remove methods registered by this module.
+    # TODO: built in callback will call 'void' in the module package.
+}
+
+########################
+### FETCHING MODULES ###
+########################
+
+# returns the module object of a full module name.
+sub get_module {
+    my ($api, $mod_name) = @_;
+    foreach (@{ $api->{loaded} }) {
+        return $_ if $_->{name}{full} eq $mod_name;
+    }
+    return;
+}
+
+# returns true if the full module name provided is loaded.
+sub module_loaded {
+    return 1 if shift->get_module(shift);
+    return;
 }
 
 ####################
