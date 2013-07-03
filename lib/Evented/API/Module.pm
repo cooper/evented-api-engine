@@ -13,7 +13,20 @@ our $VERSION = $Evented::API::Engine::VERSION;
 
 sub new {
     my ($class, %opts) = @_;
-    return bless \%opts, $class;
+    my $mod = bless \%opts, $class;
+    
+    # TODO: check for required options.
+    
+    # default initialize handler.
+    $mod->register_event(initialize => sub {
+            my $init = $mod->{name}{package}->can('init') or return;
+            $init->(@_);
+        },
+        name     => 'default.initialize',
+        priority => 100
+    );
+    
+    return $mod;
 }
 
 1;

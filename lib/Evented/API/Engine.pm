@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child export_code);
 
-our $VERSION = '0.8';
+our $VERSION = '0.9';
 
 # create a new API Engine.
 #
@@ -218,10 +218,13 @@ sub load_module {
         return;
     }
     
-    # fire module initialize.
-    # TODO: built in callback will call 'init' in the module package.
-    $mod->fire_event('initialize');
-
+    # fire module initialize. if the fire was stopped, give up.
+    if (my $stopper = $mod->fire_event('initialize')->stopper) {
+        $api->_log('mod_load_fail', $mod_name, "Initialization canceled by '$stopper'");
+        @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
+        # hax::package_unload();
+        return;
+    }
     
     $api->_log('mod_load_comp', $mod_name);
     return $mod_name;
