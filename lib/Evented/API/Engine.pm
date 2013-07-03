@@ -14,9 +14,9 @@ use Evented::Object;
 use parent 'Evented::Object';
 
 use Evented::API::Module;
-use Evented::API::Hax qw(set_symbol make_child);
+use Evented::API::Hax qw(set_symbol make_child export_code);
 
-our $VERSION = '0.7';
+our $VERSION = '0.8';
 
 # create a new API Engine.
 #
@@ -197,6 +197,7 @@ sub load_module {
     # create the module object.
     $info->{name}{last} = $mod_last_name;
     my $mod = $pkg->new(%$info);
+    push @{ $api->{loaded} }, $mod;
     
     # export API Engine and module objects.
     set_symbol($pkg, {
@@ -212,6 +213,7 @@ sub load_module {
     # probably an error, or the module just didn't return $mod.
     if (!$return || $return != $mod) {
         $api->_log('mod_load_fail', $mod_name, $@ ? $@ : 'Package did not return module object');
+        @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
         # hax::package_unload();
         return;
     }
@@ -219,9 +221,7 @@ sub load_module {
     # fire module initialize.
     # TODO: built in callback will call 'init' in the module package.
     $mod->fire_event('initialize');
-    
-    # add to loaded modules.
-    push @{ $api->{loaded} }, $mod;
+
     
     $api->_log('mod_load_comp', $mod_name);
     return $mod_name;
@@ -262,6 +262,7 @@ sub _load_module_requirements {
 
 # unload a module.
 sub unload_module {
+    # TODO: check if any loaded modules are dependent on this one
     # TODO: remove methods registered by this module.
     # TODO: built in callback will call 'void' in the module package.
 }
@@ -275,6 +276,15 @@ sub get_module {
     my ($api, $mod_name) = @_;
     foreach (@{ $api->{loaded} }) {
         return $_ if $_->{name}{full} eq $mod_name;
+    }
+    return;
+}
+
+# returns the module object associated with a package.
+sub package_to_module {
+    my ($api, $package) = @_;
+    foreach (@{ $api->{loaded} }) {
+        return $_ if $_->{name}{package} eq $package;
     }
     return;
 }
@@ -306,13 +316,29 @@ sub retrieve {
 #######################
 
 # add new methods to the API Engine.
-sub add_methods {
-    my ($api, %methods) = @_;
+sub add_method {
+    my ($api, $method_name, $method_code) = @_;
     
+    # is this a module calling?
+    if (my $mod = $api->package_to_module(caller)) {
+        $mod->{global_engine_methods} ||= [];
+        push @{ $mod->{global_engine_methods} }, $method_name;
+    }
+    
+    export_code(__PACKAGE__, $method_name, $method_code);
 }
 
 # add new methods to all modules in the API Engine.
-sub add_module_methods {
+sub add_module_method {
+    my ($api, $method_name, $method_code) = @_;
+    
+    # is this a module calling?
+    if (my $mod = $api->package_to_module(caller)) {
+        $mod->{global_module_methods} ||= [];
+        push @{ $mod->{global_api_methods} }, $method_name;
+    }
+    
+    export_code('Evented::API::Module', $method_name, $method_code);
 }
 
 ################
