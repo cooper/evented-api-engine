@@ -307,6 +307,8 @@ sub retrieve {
 
 # add new methods to the API Engine.
 sub add_methods {
+    my ($api, %methods) = @_;
+    
 }
 
 # add new methods to all modules in the API Engine.
