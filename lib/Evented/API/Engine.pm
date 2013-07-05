@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child export_code);
 
-our $VERSION = '1.0';
+our $VERSION = '1.1';
 
 # create a new API Engine.
 #
@@ -247,19 +247,32 @@ sub _load_module_requirements {
 sub _get_module_info {
     my ($api, $mod_name, $mod_dir, $mod_last_name) = @_;
  
+    # try reading module JSON file.
+    my $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$mod_last_name.json");
+
+    # no file - start with an empty hash.
+    unless (defined $info) {
+        $info = {};
+    }
+  
+    # parse JSON.
+    elsif (not $info = eval { decode_json($info) }) {
+        $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
+        return;
+    }
+
     # try reading comments.
     open my $fh, '<', "$mod_dir/$mod_last_name.pm"
     or $api->_log('mod_load_fail', $mod_name, "Could not open file: $!") and return;
     
     # parse for variables.
-    my $info;
-    my $_info = {};
+
     while (my $line = <$fh>) {
         next unless $line =~ m/^#\s*@([\.\w]+)\s*:(.+)$/;
         my ($var_name, $perl_value) = ($1, $2);
         
         # find the correct hash level.
-        my ($i, $current, @s) = (0, $_info, split /\./, $var_name);
+        my ($i, $current, @s) = (0, $info, split /\./, $var_name);
         foreach my $l (@s) {
         
             # last level, should contain the value.
@@ -278,30 +291,21 @@ sub _get_module_info {
             
         }
         
-        $info = $_info;
     }
     
-    close $fh; # TODO: write JSON.
+    close $fh;
     
-    # still nothing - try module.json instead.
-    if (!$info) {
+    # write JSON information.
+    if ($info) {
+        my $info_json = JSON->new->pretty->encode($info);
         
-        # try reading module JSON file.
-        $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$mod_last_name.json");
-
-        # wow, really? Nothing! give up.
+        open my $fh, '>', "$mod_dir/$mod_last_name.json" or
+         $api->_log('mod_load_warn', $mod_name, 'Could not write module JSON information')
+         and return;
         
-        if (!$info) {
-            $api->_log('mod_load_fail', $mod_name, 'No module information discovered');
-            return;
-        }
-        
-        # parse JSON.
-        if (not $info = eval { decode_json($info) }) {
-            $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
-            return;
-        }
-        
+        $fh->write($info_json);
+        close $fh;
+        $api->_log('mod_load_info', $mod_name, 'Updated module information file');
     }
     
     # check for required module info values.
@@ -439,6 +443,7 @@ sub _log {
     my %syntax = (
         mod_load_begn => "%s(%s): BEGINNING MODULE LOAD",
         mod_load_info => "%s(%s): %s",
+        mod_load_warn => "%s(%s): Warning: %s",
         mod_load_fail => "%s(%s): *** FAILED TO LOAD *** %s",
         mod_load_comp => "%s(%s): MODULE LOADED SUCCESSFULLY"
     );
