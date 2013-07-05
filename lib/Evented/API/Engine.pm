@@ -7,16 +7,15 @@ use warnings;
 use strict;
 use 5.010;
 
-use Carp;
-use JSON qw(decode_json);
+use JSON ();
 
 use Evented::Object;
 use parent 'Evented::Object';
 
 use Evented::API::Module;
-use Evented::API::Hax qw(set_symbol make_child export_code);
+use Evented::API::Hax qw(set_symbol make_child);
 
-our $VERSION = '1.1';
+our $VERSION = '1.2';
 
 # create a new API Engine.
 #
@@ -144,9 +143,6 @@ sub load_module {
     
     $api->_log('mod_load_info', $mod_name, "Searching for module in: $search_dir/");
     
-    # TODO: add support for __DATA__ JSON and single-file modules.
-    # rethink: how about wikifier-style variables?
-    
     # module does not exist in this search directory.
     # try the next search directory.
     my $mod_name_file  = $mod_name; $mod_name_file =~ s/::/\//g;
@@ -172,9 +168,7 @@ sub load_module {
    
     # load required modules here.
     $api->_load_module_requirements($info);
-    
-    # TODO: add global API module methods here.
-    
+        
     # make the package a child of Evented::API::Module.
     make_child($pkg, 'Evented::API::Module'); 
     
@@ -203,7 +197,7 @@ sub load_module {
     }
     
     # fire module initialize. if the fire was stopped, give up.
-    if (my $stopper = $mod->fire_event('initialize')->stopper) {
+    if (my $stopper = $mod->fire_event('init')->stopper) {
         $api->_log('mod_load_fail', $mod_name, "Initialization canceled by '$stopper'");
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
         # hax::package_unload();
@@ -246,7 +240,8 @@ sub _load_module_requirements {
 # fetch module information.
 sub _get_module_info {
     my ($api, $mod_name, $mod_dir, $mod_last_name) = @_;
- 
+    my $json = JSON->new();
+    
     # try reading module JSON file.
     my $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$mod_last_name.json");
 
@@ -256,7 +251,7 @@ sub _get_module_info {
     }
   
     # parse JSON.
-    elsif (not $info = eval { decode_json($info) }) {
+    elsif (not $info = eval { $json->decode($info) }) {
         $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
         return;
     }
@@ -297,7 +292,7 @@ sub _get_module_info {
     
     # write JSON information.
     if ($info) {
-        my $info_json = JSON->new->pretty->encode($info);
+        my $info_json = $json->pretty->encode($info);
         
         open my $fh, '>', "$mod_dir/$mod_last_name.json" or
          $api->_log('mod_load_warn', $mod_name, 'Could not write module JSON information')
@@ -376,36 +371,6 @@ sub store {
 sub retrieve {
     my ($api, $key) = @_;
     return $api->{store}{$key};
-}
-
-#######################
-### DYNAMIC METHODS ###
-#######################
-
-# add new methods to the API Engine.
-sub add_method {
-    my ($api, $method_name, $method_code) = @_;
-    
-    # is this a module calling?
-    if (my $mod = $api->package_to_module(caller)) {
-        $mod->{global_engine_methods} ||= [];
-        push @{ $mod->{global_engine_methods} }, $method_name;
-    }
-    
-    export_code(__PACKAGE__, $method_name, $method_code);
-}
-
-# add new methods to all modules in the API Engine.
-sub add_module_method {
-    my ($api, $method_name, $method_code) = @_;
-    
-    # is this a module calling?
-    if (my $mod = $api->package_to_module(caller)) {
-        $mod->{global_module_methods} ||= [];
-        push @{ $mod->{global_api_methods} }, $method_name;
-    }
-    
-    export_code('Evented::API::Module', $method_name, $method_code);
 }
 
 ################

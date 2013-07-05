@@ -18,18 +18,18 @@ sub new {
     # TODO: check for required options.
     
     # default initialize handler.
-    $mod->register_callback(initialize => sub {
+    $mod->register_callback(init => sub {
             my $init = $mod->{name}{package}->can('init') or return;
             $init->(@_);
         },
-        name     => 'api.engine.initialize',
+        name     => 'api.engine.init',
         priority => 100
     );
     
     # default void handler.
     $mod->register_callback(void => sub {
-            my $init = $mod->{name}{package}->can('void') or return;
-            $init->(@_);
+            my $void = $mod->{name}{package}->can('void') or return;
+            $void->(@_);
         },
         name     => 'api.engine.void',
         priority => 100
