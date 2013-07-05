@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child export_code);
 
-our $VERSION = '0.9';
+our $VERSION = '1.0';
 
 # create a new API Engine.
 #
@@ -164,28 +164,12 @@ sub load_module {
         return;
     }
     
-    # read module.json.
-    my $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$mod_last_name.json");
+    # fetch module information.
+    my $info = $api->_get_module_info($mod_name, $mod_dir, $mod_last_name);
     return if not defined $info;
-    if (not $info = eval { decode_json($info) }) {
-        $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
-        return;
-    }
     
-    # check for required JSON values.
-    foreach my $require (
-        [   'name.short',   $info->{name}{short}    ],
-        [   'name.full',    $info->{name}{full}     ],
-        [   'name.package', $info->{name}{package}  ],
-        [   'version',      $info->{version}        ]
-    ) {
-        next if defined $require->[1];
-        $api->_log('mod_load_fail', $mod_name, "Mandatory info '$$require[0]' not present");
-        return;
-    }
     my $pkg = $info->{name}{package};
-    
-    
+   
     # load required modules here.
     $api->_load_module_requirements($info);
     
@@ -257,6 +241,82 @@ sub _load_module_requirements {
         $api->load_module($mod_name);
         
     }
+}
+
+# fetch module information.
+sub _get_module_info {
+    my ($api, $mod_name, $mod_dir, $mod_last_name) = @_;
+ 
+    # try reading comments.
+    open my $fh, '<', "$mod_dir/$mod_last_name.pm"
+    or $api->_log('mod_load_fail', $mod_name, "Could not open file: $!") and return;
+    
+    # parse for variables.
+    my $info;
+    my $_info = {};
+    while (my $line = <$fh>) {
+        next unless $line =~ m/^#\s*@([\.\w]+)\s*:(.+)$/;
+        my ($var_name, $perl_value) = ($1, $2);
+        
+        # find the correct hash level.
+        my ($i, $current, @s) = (0, $_info, split /\./, $var_name);
+        foreach my $l (@s) {
+        
+            # last level, should contain the value.
+            if ($i == $#s) {
+                $current->{$l} = eval $perl_value;
+                if (!$current->{$l} && $@) {
+                    $api->_log('mod_load_fail', $mod_name, "Evaluating '\@$var_name' failed: $@");
+                    return;
+                }
+                last;
+            }
+        
+            # set the current level.
+            $current = ( $current->{$l} ||= {} );
+            $i++;
+            
+        }
+        
+        $info = $_info;
+    }
+    
+    close $fh; # TODO: write JSON.
+    
+    # still nothing - try module.json instead.
+    if (!$info) {
+        
+        # try reading module JSON file.
+        $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$mod_last_name.json");
+
+        # wow, really? Nothing! give up.
+        
+        if (!$info) {
+            $api->_log('mod_load_fail', $mod_name, 'No module information discovered');
+            return;
+        }
+        
+        # parse JSON.
+        if (not $info = eval { decode_json($info) }) {
+            $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
+            return;
+        }
+        
+    }
+    
+    # check for required module info values.
+    foreach my $require (
+        [   'name.short',   $info->{name}{short}    ],
+        [   'name.full',    $info->{name}{full}     ],
+        [   'name.package', $info->{name}{package}  ],
+        [   'version',      $info->{version}        ]
+    ) {
+        next if defined $require->[1];
+        $api->_log('mod_load_fail', $mod_name, "Mandatory info '$$require[0]' not present");
+        return;
+    }
+    
+    return $info;
 }
 
 #########################
