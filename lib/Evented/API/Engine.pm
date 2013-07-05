@@ -15,7 +15,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child);
 
-our $VERSION = '1.2';
+our $VERSION = '1.3';
 
 # create a new API Engine.
 #
@@ -33,7 +33,7 @@ sub new {
     if (defined $opts{mod_inc} && ref $opts{mod_inc} eq 'ARRAY') { $inc = $opts{mod_inc} }
     
     elsif (defined $opts{mod_inc}) { $inc = [ $opts{mod_inc} ] } # single search directory
-    else { $inc = ['.', 'mod'] }                                 # no search directories
+    else { $inc = ['.', 'mod', 'lib/evented-api-engine/mod'] }   # no search directories
     
     # create the API Engine.
     my $api = bless {
@@ -154,7 +154,7 @@ sub load_module {
     
     # we located the module directory.
     # now we must ensure all required files are present.
-    foreach my $file ("$mod_last_name.json", "$mod_last_name.pm") {
+    foreach my $file ("$mod_last_name.pm") {
         next if -f "$mod_dir/$file";
         $api->_log('mod_load_fail', $mod_name, "Mandatory file '$file' not present");
         return;
@@ -243,7 +243,7 @@ sub _get_module_info {
     my $json = JSON->new();
     
     # try reading module JSON file.
-    my $info = $api->_slurp('mod_load_fail', $mod_name, "$mod_dir/$mod_last_name.json");
+    my $info = $api->_slurp(undef, $mod_name, "$mod_dir/$mod_last_name.json");
 
     # no file - start with an empty hash.
     unless (defined $info) {
@@ -430,6 +430,7 @@ sub _slurp {
     # open file.
     my $fh;
     if (!open $fh, '<', $file_name) {
+        return unless $log_type;
         $api->_log($log_type, $mod_name, "$file_name could not be opened for reading");
         return;
     }

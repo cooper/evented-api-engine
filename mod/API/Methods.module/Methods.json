@@ -1,0 +1,12 @@
+{
+   "version" : "1.2",
+   "name" : {
+      "short" : "API::Methods",
+      "full" : "API::Methods",
+      "package" : "Evented::API::Methods"
+   },
+   "author" : {
+      "website" : "https://github.com/cooper",
+      "name" : "Mitchell Cooper"
+   }
+}
