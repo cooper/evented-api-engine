@@ -192,7 +192,7 @@ sub load_module {
     if (!$return || $return != $mod) {
         $api->_log('mod_load_fail', $mod_name, $@ ? $@ : 'Package did not return module object');
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
-        # hax::package_unload();
+        # TODO: hax::package_unload();
         return;
     }
     
@@ -200,9 +200,12 @@ sub load_module {
     if (my $stopper = $mod->fire_event('init')->stopper) {
         $api->_log('mod_load_fail', $mod_name, "Initialization canceled by '$stopper'");
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
-        # hax::package_unload();
+        # TODO: hax::package_unload();
         return;
     }
+    
+    # make engine listener of module.
+    $mod->add_listener($api, 'module');
     
     $api->_log('mod_load_comp', $mod_name);
     return $mod_name;
@@ -327,6 +330,7 @@ sub unload_module {
     # TODO: check if any loaded modules are dependent on this one
     # TODO: remove methods registered by this module.
     # TODO: built in callback will call 'void' in the module package.
+    # $mod->fire(void)
 }
 
 ########################

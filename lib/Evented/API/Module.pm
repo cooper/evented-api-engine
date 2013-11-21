@@ -38,4 +38,20 @@ sub new {
     return $mod;
 }
 
+####################
+### DATA STORAGE ###
+####################
+
+# store a piece of data specific to this module.
+sub store {
+    my ($mod, $key, $value) = @_;
+    $mod->{store}{$key} = $value;
+}
+
+# fetch a piece of data specific to this module.
+sub retrieve {
+    my ($mod, $key) = @_;
+    return $mod->{store}{$key};
+}
+
 1;
