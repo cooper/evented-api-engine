@@ -38,7 +38,6 @@ DerivedData
 .idea/
 *.hmap
 *.xccheckout
-
 etc/*.conf
 etc/*.db
 etc/*.pid
