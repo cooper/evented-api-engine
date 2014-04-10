@@ -9,7 +9,6 @@
 /* Begin PBXFileReference section */
 		BC2C929218F61CA0000A8517 /* Engine.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Engine.pm; path = ../lib/Evented/API/Engine.pm; sourceTree = "<group>"; };
 		BC2C929318F61CA0000A8517 /* Hax.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Hax.pm; path = ../lib/Evented/API/Hax.pm; sourceTree = "<group>"; };
-		BC2C929418F61CA0000A8517 /* ManagedObject.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = ManagedObject.pm; path = ../lib/Evented/API/ManagedObject.pm; sourceTree = "<group>"; };
 		BC2C929518F61CA0000A8517 /* Module.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Module.pm; path = ../lib/Evented/API/Module.pm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -19,7 +18,6 @@
 			children = (
 				BC2C929218F61CA0000A8517 /* Engine.pm */,
 				BC2C929318F61CA0000A8517 /* Hax.pm */,
-				BC2C929418F61CA0000A8517 /* ManagedObject.pm */,
 				BC2C929518F61CA0000A8517 /* Module.pm */,
 			);
 			sourceTree = "<group>";

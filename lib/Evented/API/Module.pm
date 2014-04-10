@@ -10,6 +10,7 @@ use Evented::Object;
 use parent 'Evented::Object';
 
 our $VERSION = $Evented::API::Engine::VERSION;
+our $events  = $Evented::Object::events;
 
 sub new {
     my ($class, %opts) = @_;
@@ -85,9 +86,21 @@ sub managing_object {
     return;
 }
 
-# delete all the events managed by this object.
+# remove object from management, deleting all events.
+sub release_object {
+    my ($mod, $eo) = @_;
+    foreach my $event_name (keys %{ $eo->{$events}                    }) {
+    foreach my $priority   (keys %{ $eo->{$events}{$event_name}       }) {
+    foreach my $cb         (@{ $eo->{$events}{$event_name}{$priority} }) {
+        next unless $cb->{caller}[0] eq $mod->{package};
+        $eo->delete_callback($event_name, $cb->{name});
+    }}}
+}
+
+# delete all the events managed by this module.
 sub _delete_managed_events {
     my $mod = shift;
+    release_object($_) foreach @{ $mod->{managed_objects} };
 }
 
 1;
