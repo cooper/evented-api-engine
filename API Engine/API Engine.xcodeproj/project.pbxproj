@@ -1,0 +1,78 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXFileReference section */
+		BC2C929218F61CA0000A8517 /* Engine.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Engine.pm; path = ../lib/Evented/API/Engine.pm; sourceTree = "<group>"; };
+		BC2C929318F61CA0000A8517 /* Hax.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Hax.pm; path = ../lib/Evented/API/Hax.pm; sourceTree = "<group>"; };
+		BC2C929418F61CA0000A8517 /* ManagedObject.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = ManagedObject.pm; path = ../lib/Evented/API/ManagedObject.pm; sourceTree = "<group>"; };
+		BC2C929518F61CA0000A8517 /* Module.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Module.pm; path = ../lib/Evented/API/Module.pm; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		BC2C928B18F61C84000A8517 = {
+			isa = PBXGroup;
+			children = (
+				BC2C929218F61CA0000A8517 /* Engine.pm */,
+				BC2C929318F61CA0000A8517 /* Hax.pm */,
+				BC2C929418F61CA0000A8517 /* ManagedObject.pm */,
+				BC2C929518F61CA0000A8517 /* Module.pm */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXProject section */
+		BC2C928C18F61C84000A8517 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0510;
+			};
+			buildConfigurationList = BC2C928F18F61C84000A8517 /* Build configuration list for PBXProject "API Engine" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = BC2C928B18F61C84000A8517;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+			);
+		};
+/* End PBXProject section */
+
+/* Begin XCBuildConfiguration section */
+		BC2C929018F61C84000A8517 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		BC2C929118F61C84000A8517 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BC2C928F18F61C84000A8517 /* Build configuration list for PBXProject "API Engine" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC2C929018F61C84000A8517 /* Debug */,
+				BC2C929118F61C84000A8517 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = BC2C928C18F61C84000A8517 /* Project object */;
+}

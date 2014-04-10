@@ -22,7 +22,8 @@ sub init {
     *API::Module::register_engine_method = *register_engine_method;
     *API::Module::register_module_method = *register_module_method;
     
-    # XXX: these handlers will not be deleted automatically.
+    # XXX:  these handlers will not be deleted automatically.
+    # TODO: use a managed object.
     $api->register_event('module.void' => \&any_void,
         name => 'api.engine.methods.any.void'
     );

@@ -15,7 +15,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child);
 
-our $VERSION = '1.3';
+our $VERSION = '1.4';
 
 # create a new API Engine.
 #
@@ -28,13 +28,14 @@ our $VERSION = '1.3';
 sub new {
     my ($class, %opts) = @_;
     
-    # several search directories.
-    my $inc;
-    if (defined $opts{mod_inc} && ref $opts{mod_inc} eq 'ARRAY') { $inc = $opts{mod_inc} }
-    
-    elsif (defined $opts{mod_inc}) { $inc = [ $opts{mod_inc} ] } # single search directory
-    else { $inc = ['.', 'mod', 'lib/evented-api-engine/mod'] }   # no search directories
-    
+    # determine search directories.
+    my $inc =                                                       #
+        defined $opts{mod_inc} && ref $opts{mod_inc} eq 'ARRAY' ?   # list
+        $opts{mod_inc}                                          :   #
+        defined $opts{mod_inc}                                  ?   # single
+        [ $opts{mod_inc} ]                                      :   #
+        ['.', 'mod', 'lib/evented-api-engine/mod'];                 # defaults
+                                                                    #
     # create the API Engine.
     my $api = bless {
         mod_inc  => $inc,
@@ -330,7 +331,8 @@ sub unload_module {
     # TODO: check if any loaded modules are dependent on this one
     # TODO: remove methods registered by this module.
     # TODO: built in callback will call 'void' in the module package.
-    # $mod->fire(void)
+    #       $mod->fire(void)
+    # TODO: call $mod->_delete_managed_events or something  
 }
 
 ########################
@@ -409,12 +411,12 @@ sub has_feature {
 # API log.
 sub _log {
     my ($api, $type, $syn) = (shift, shift);
-    my %syntax = (
-        mod_load_begn => "%s(%s): BEGINNING MODULE LOAD",
-        mod_load_info => "%s(%s): %s",
-        mod_load_warn => "%s(%s): Warning: %s",
-        mod_load_fail => "%s(%s): *** FAILED TO LOAD *** %s",
-        mod_load_comp => "%s(%s): MODULE LOADED SUCCESSFULLY"
+    state %syntax = (
+        mod_load_begn => '%s(%s): BEGINNING MODULE LOAD',
+        mod_load_info => '%s(%s): %s',
+        mod_load_warn => '%s(%s): Warning: %s',
+        mod_load_fail => '%s(%s): *** FAILED TO LOAD *** %s',
+        mod_load_comp => '%s(%s): MODULE LOADED SUCCESSFULLY'
     );
     $syn = $syntax{$type};
     return unless defined $syn;
