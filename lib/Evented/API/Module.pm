@@ -41,6 +41,12 @@ sub new {
 
 sub name    { shift->{name}{full}   }
 sub package { shift->{package}      }
+sub api     { shift->{api}          }
+
+sub _log {
+    my $mod = shift;
+    $mod->api->_log("[$$mod{name}{full}] @_");
+}
 
 ####################
 ### DATA STORAGE ###
@@ -116,8 +122,8 @@ sub release_object {
     
     # don't waste time removing this if we're removing them all.
     unless ($dont_remove) {
-        $objects  = $mod->{managed_objects};
-        @$objects = grep { $_ != $eo } @$objects;
+        my $objects = $mod->{managed_objects};
+        @$objects   = grep { $_ != $eo } @$objects;
     }
     
 }
@@ -132,5 +138,16 @@ sub _delete_managed_events {
 ####################
 ### DEPENDENCIES ###
 ####################
+
+# returns the modules that this depends on.
+sub depends {
+    # TODO: do.
+}
+
+# returns the module that depend on this.
+sub dependents {
+    my $mod = shift;
+    $mod->api->{loaded}
+}
 
 1;

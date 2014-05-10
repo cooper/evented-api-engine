@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '1.6';
+our $VERSION = '1.7';
 
 # create a new API Engine.
 #
@@ -106,7 +106,7 @@ sub load_modules {
 sub load_module {
     my ($api, $mod_name, $dirs) = @_;
     return unless $mod_name;
-    $api->_log('mod_load_begn', $mod_name) unless $dirs;
+    $api->_log("Loading $mod_name") unless $dirs;
     
     # we are in a load block.
     # we are not in the middle of loading this particular module.
@@ -114,7 +114,7 @@ sub load_module {
 
         # make sure this module has not been attempted.
         if ($api->{load_block}{$mod_name}) {
-            $api->_log('mod_load_fail', $mod_name, 'Skipping already attempted module');
+            $api->_log("Load failed: $mod_name; Skipping already attempted module");
             return;
         }
     
@@ -125,7 +125,7 @@ sub load_module {
     
     # check here if the module is loaded already.
     if ($api->module_loaded($mod_name)) {
-        $api->_log('mod_load_fail', $mod_name, 'Module already loaded');
+        $api->_log("Load failed: $mod_name; Module already loaded");
         return;
     }
     
@@ -139,11 +139,11 @@ sub load_module {
     
     # already checked every search directory.
     if (!defined $search_dir) {
-        $api->_log('mod_load_fail', $mod_name, 'Module not found in any search directories');
+        $api->_log("Load failed: $mod_name; Module not found in any search directories");
         return;
     }
     
-    $api->_log('mod_load_info', $mod_name, "Searching for module in: $search_dir/");
+    $api->_log("Searching for module: $mod_name; $search_dir/");
     
     # module does not exist in this search directory.
     # try the next search directory.
@@ -158,7 +158,7 @@ sub load_module {
     # now we must ensure all required files are present.
     foreach my $file ("$mod_last_name.pm") {
         next if -f "$mod_dir/$file";
-        $api->_log('mod_load_fail', $mod_name, "Mandatory file '$file' not present");
+        $api->_log("Load failed: $mod_name; Mandatory file '$file' not present");
         return;
     }
     
@@ -169,6 +169,7 @@ sub load_module {
     my $pkg = $info->{package};
    
     # load required modules here.
+    # FIXME: if these are loaded, then the module fails later, these remain loaded.
     $api->_load_module_requirements($info);
         
     # make the package a child of Evented::API::Module.
@@ -190,12 +191,12 @@ sub load_module {
     });
         
     # load the module.
-    $api->_log('mod_load_info', $mod_name, 'Evaluating main package');
+    $api->_log("Evaluating main package: $mod_name");
     my $return = do "$mod_dir/$mod_last_name.pm";
     
     # probably an error, or the module just didn't return $mod.
     if (!$return || $return != $mod) {
-        $api->_log('mod_load_fail', $mod_name, $@ ? $@ : 'Package did not return module object');
+        $api->_log("Load failed: $mod_name; ".($@ || 'Package did not return module object'));
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
         package_unload($pkg);
         return;
@@ -206,13 +207,13 @@ sub load_module {
     
     # fire module initialize. if the fire was stopped, give up.
     if (my $stopper = $mod->fire_event('init')->stopper) {
-        $api->_log('mod_load_fail', $mod_name, "Initialization canceled by '$stopper'");
+        $api->_log("Load failed: $mod_name; Initialization canceled by '$stopper'");
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
         package_unload($pkg);
         return;
     }
     
-    $api->_log('mod_load_comp', $mod_name);
+    $api->_log("Loaded $mod_name successfully");
     return $mod_name;
 }
 
@@ -229,18 +230,18 @@ sub _load_module_requirements {
     
         # dependency already loaded.
         if ($api->module_loaded($mod_name)) {
-            $api->_log('mod_load_info', $mod_name, 'Skipping already loaded dependency');
+            $api->_log("Requirements of $$info{name}{full}; Skipping already loaded dependency");
             next;
         }
         
         # prevent endless loops.
         if ($info->{name}{full} eq $mod_name) {
-            $api->_log('mod_load_info', $mod_name, 'MODULE DEPENDS ON ITSELF?!?!');
+            $api->_log("Requirements of $$info{name}{full}; Module depends on itself");
             next;
         }
         
         # load the dependency.
-        $api->_log('mod_load_info', $mod_name, 'Loading dependency of '.$info->{name}{full});
+        $api->_log("Requirements of $$info{name}{full}; Loading dependency $mod_name");
         $api->load_module($mod_name);
         
     }
@@ -261,7 +262,7 @@ sub _get_module_info {
   
     # parse JSON.
     elsif (not $info = eval { $json->decode($info) }) {
-        $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
+        $api->_log("Load failed: $mod_name; JSON parsing of module info failed: $@");
         return;
     }
     
@@ -280,7 +281,7 @@ sub _get_module_info {
 
     # try reading comments.
     open my $fh, '<', "$mod_dir/$mod_last_name.pm"
-    or $api->_log('mod_load_fail', $mod_name, "Could not open file: $!") and return;
+    or $api->_log("Load failed: $mod_name; Could not open file: $!") and return;
     
     # parse for variables.
     while (my $line = <$fh>) {
@@ -295,7 +296,7 @@ sub _get_module_info {
             if ($i == $#s) {
                 $current->{$l} = eval $perl_value;
                 if (!$current->{$l} && $@) {
-                    $api->_log('mod_load_fail', $mod_name, "Evaluating '\@$var_name' failed: $@");
+                    $api->_log("Load failed: $mod_name; Evaluating '\@$var_name' failed: $@");
                     return;
                 }
                 last;
@@ -316,12 +317,12 @@ sub _get_module_info {
         my $info_json = $json->pretty->encode($info);
         
         open my $fh, '>', "$mod_dir/$mod_last_name.json" or
-         $api->_log('mod_load_warn', $mod_name, 'Could not write module JSON information')
+         $api->_log("JSON warning: $mod_name; Could not write module JSON information")
          and return;
         
         $fh->write($info_json);
         close $fh;
-        $api->_log('mod_load_info', $mod_name, 'Updated module information file');
+        $api->_log("JSON: $mod_name; Updated module information file");
     }
     
     # check for required module info values.
@@ -343,7 +344,7 @@ sub _get_module_info {
         
         # not present.
         chop $n;
-        $api->_log('mod_load_fail', $mod_name, "Mandatory info '$n' not present");
+        $api->_log("Load failed: $mod_name; Mandatory info '$n' not present");
         return;
         
     }
@@ -359,17 +360,16 @@ sub _get_module_info {
 sub unload_module {
     my ($api, $mod) = @_;
     
-    # TODO: check if any loaded modules are dependent on this one
+    # check if any loaded modules are dependent on this one.
     if (my @dependents = $mod->dependents) {
-        $api->_log(
-        $api->unload_module($_) foreach @dependents;
+        @dependents = grep { $_->name } @dependents;
+        $mod->_log("Can't unload; dependent modules: @dependents");
+        return;
     }
-    
-    # TODO: remove methods registered by this module.
-    
+        
     # fire module void. if the fire was stopped, give up.
     if (my $stopper = $mod->fire_event('void')->stopper) {
-        $api->_log('mod_load_fail', $mod_name, "Module unload canceled by '$stopper'");
+        $api->_log("Can't unload; canceled by '$stopper'");
         return;
     }
     
@@ -475,22 +475,15 @@ my %syntax = (
     mod_load_comp => '%s(%s): MODULE LOADED SUCCESSFULLY',
 
     mod_unload_begn => '%s(%s): PREPARING TO UNLOAD',
-    mod_unload_info => '%s(%s): %s'
+    mod_unload_info => '%s(%s): %s',
+    mod_unload_fail => '%s(%s): failed to unload: %s'
 
 );
 
 # API log.
 sub _log {
-    my ($api, $type, $syn) = (shift, shift);
-    $syn = $syntax{$type};
-    return unless defined $syn;
-    
-    my $sub = (caller 1)[3];
-    $sub    =~ s/Evented::API:://;
-    my $msg = sprintf $syn, $sub, @_;
-    
-    $api->fire_event(log => $msg);
-    return;
+    my $api = shift;
+    return $api->fire_event(log => shift);
 }
 
 # read contents of file.
@@ -501,7 +494,7 @@ sub _slurp {
     my $fh;
     if (!open $fh, '<', $file_name) {
         return unless $log_type;
-        $api->_log($log_type, $mod_name, "$file_name could not be opened for reading");
+        $api->_log("$file_name could not be opened for reading");
         return;
     }
     

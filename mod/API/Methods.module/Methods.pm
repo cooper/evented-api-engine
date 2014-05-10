@@ -24,10 +24,10 @@ sub init {
     *API::Module::register_module_method = *register_module_method;
     
     # register events.
-    $mod->manage_object($api);
     $api->register_event('module.void' => \&any_void,
         name             => 'api.engine.methods.any.void',
-        with_evented_obj => 1
+        with_evented_obj => 1,
+        after            => 'api.engine.void'
     );
     
 }
@@ -57,6 +57,7 @@ sub any_void {
     delete_method('Evented::API::Engine', $_) foreach keys %$e_methods;
     delete_method('Evented::API::Module', $_) foreach keys %$m_methods;
     
+    return 1;
 }
 
 # add a method to symbol table.
@@ -82,6 +83,11 @@ sub delete_method {
 sub register_engine_method {
     my ($mod, $name, $code, %opts) = @_;
     
+    # no code; it's a sub name.
+    if (!$code) {
+        $code = $mod->package->can($name) or return;
+    }
+    
     # store method information.
     my $methods = $mod->retrieve('engine_methods', {})->{ $mod->full_name } //= {};
     $methods->{$name} = {
@@ -96,6 +102,11 @@ sub register_engine_method {
 # register a method to API modules.
 sub register_module_method {
     my ($mod, $name, $code, %opts) = @_;
+    
+    # no code; it's a sub name.
+    if (!$code) {
+        $code = $mod->package->can($name) or return;
+    }
     
     # store method information.
     my $methods = $mod->retrieve('module_methods', {})->{ $mod->full_name } //= {};

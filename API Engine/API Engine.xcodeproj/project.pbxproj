@@ -18,8 +18,8 @@
 			isa = PBXGroup;
 			children = (
 				BC2C929218F61CA0000A8517 /* Engine.pm */,
-				BC2C929318F61CA0000A8517 /* Hax.pm */,
 				BC2C929518F61CA0000A8517 /* Module.pm */,
+				BC2C929318F61CA0000A8517 /* Hax.pm */,
 				BCDD41891902EA8D008A4566 /* Methods.pm */,
 			);
 			sourceTree = "<group>";
