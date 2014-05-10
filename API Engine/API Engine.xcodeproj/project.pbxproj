@@ -10,6 +10,7 @@
 		BC2C929218F61CA0000A8517 /* Engine.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Engine.pm; path = ../lib/Evented/API/Engine.pm; sourceTree = "<group>"; };
 		BC2C929318F61CA0000A8517 /* Hax.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Hax.pm; path = ../lib/Evented/API/Hax.pm; sourceTree = "<group>"; };
 		BC2C929518F61CA0000A8517 /* Module.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Module.pm; path = ../lib/Evented/API/Module.pm; sourceTree = "<group>"; };
+		BCDD41891902EA8D008A4566 /* Methods.pm */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; name = Methods.pm; path = ../mod/API/Methods.module/Methods.pm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -19,6 +20,7 @@
 				BC2C929218F61CA0000A8517 /* Engine.pm */,
 				BC2C929318F61CA0000A8517 /* Hax.pm */,
 				BC2C929518F61CA0000A8517 /* Module.pm */,
+				BCDD41891902EA8D008A4566 /* Methods.pm */,
 			);
 			sourceTree = "<group>";
 		};

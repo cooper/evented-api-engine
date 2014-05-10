@@ -20,7 +20,7 @@ sub new {
     
     # default initialize handler.
     $mod->register_callback(init => sub {
-            my $init = $mod->{name}{package}->can('init') or return;
+            my $init = $mod->package->can('init') or return;
             $init->(@_);
         },
         name     => 'api.engine.init',
@@ -29,7 +29,7 @@ sub new {
     
     # default void handler.
     $mod->register_callback(void => sub {
-            my $void = $mod->{name}{package}->can('void') or return;
+            my $void = $mod->package->can('void') or return;
             $void->(@_);
         },
         name     => 'api.engine.void',
@@ -38,6 +38,9 @@ sub new {
     
     return $mod;
 }
+
+sub name    { shift->{name}{full}   }
+sub package { shift->{package}      }
 
 ####################
 ### DATA STORAGE ###
@@ -51,8 +54,23 @@ sub store {
 
 # fetch a piece of data specific to this module.
 sub retrieve {
+    my ($mod, $key, $default_value) = @_;
+    return $mod->{store}{$key} //= $default_value;
+}
+
+# adds the item to a list store.
+# if the store doesn't exist, creates it.
+sub list_store_add {
+    my ($mod, $key, $value) = @_;
+    push @{ $mod->{store}{$key} ||= [] }, $value;
+}
+
+# returns all the items in a list store.
+# if the store doesn't exist, this is
+# still safe and returns an empty list.
+sub list_store_items {
     my ($mod, $key) = @_;
-    return $mod->{store}{$key};
+    return @{ $mod->{store}{$key} || [] };
 }
 
 #######################
@@ -73,13 +91,13 @@ sub manage_object {
     return if !bless $mod || !$mod->isa('Evented::Object');
     my $count = managing_object($eo);
     return $count if $count;
-    push @{ $mod->{managed_objects} }, $eo;
+    push @{ $mod->{managed_objects} ||= [] }, $eo;
 }
 
 # returns true if an object is being managed by this module.
 sub managing_object {
     my ($mod, $eo) = @_;
-    my @objects = @{ $mod->{managed_objects} };
+    my @objects = @{ $mod->{managed_objects} ||= [] };
     foreach my $_eo (@objects) {
         return scalar @objects if $_eo == $eo;
     }
@@ -88,19 +106,31 @@ sub managing_object {
 
 # remove object from management, deleting all events.
 sub release_object {
-    my ($mod, $eo) = @_;
+    my ($mod, $eo, $dont_remove) = @_;
     foreach my $event_name (keys %{ $eo->{$events}                    }) {
     foreach my $priority   (keys %{ $eo->{$events}{$event_name}       }) {
     foreach my $cb         (@{ $eo->{$events}{$event_name}{$priority} }) {
-        next unless $cb->{caller}[0] eq $mod->{package};
+        next unless $cb->{caller}[0] eq $mod->package;
         $eo->delete_callback($event_name, $cb->{name});
     }}}
+    
+    # don't waste time removing this if we're removing them all.
+    unless ($dont_remove) {
+        $objects  = $mod->{managed_objects};
+        @$objects = grep { $_ != $eo } @$objects;
+    }
+    
 }
 
 # delete all the events managed by this module.
 sub _delete_managed_events {
     my $mod = shift;
-    release_object($_) foreach @{ $mod->{managed_objects} };
+    $mod->release_object($_, 1) foreach @{ $mod->{managed_objects} };
+    $mod->{managed_objects} = [];
 }
+
+####################
+### DEPENDENCIES ###
+####################
 
 1;

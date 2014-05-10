@@ -8,14 +8,15 @@ use strict;
 use 5.010;
 
 use JSON ();
+use Scalar::Util 'weaken';
 
 use Evented::Object;
 use parent 'Evented::Object';
 
 use Evented::API::Module;
-use Evented::API::Hax qw(set_symbol make_child);
+use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '1.5';
+our $VERSION = '1.6';
 
 # create a new API Engine.
 #
@@ -130,7 +131,7 @@ sub load_module {
     
     # if there is no list of search directories, we have not attempted any loading.
     if (!$dirs) {
-        return $api->load_module($mod_name, [ @{ $api->{mod_inc} } ]);
+        return $api->load_module($mod_name, [ @{ $api->{mod_inc} } ]); # to prevent modification
     }
     
     # otherwise, we are searching the next directory in the list.
@@ -165,7 +166,7 @@ sub load_module {
     my $info = $api->_get_module_info($mod_name, $mod_dir, $mod_last_name);
     return if not defined $info;
     
-    my $pkg = $info->{name}{package};
+    my $pkg = $info->{package};
    
     # load required modules here.
     $api->_load_module_requirements($info);
@@ -177,6 +178,9 @@ sub load_module {
     $info->{name}{last} = $mod_last_name;
     my $mod = $pkg->new(%$info);
     push @{ $api->{loaded} }, $mod;
+    
+    # hold a weak reference to the API engine.
+    weaken($mod->{api} = $api);
     
     # export API Engine and module objects.
     set_symbol($pkg, {
@@ -193,20 +197,20 @@ sub load_module {
     if (!$return || $return != $mod) {
         $api->_log('mod_load_fail', $mod_name, $@ ? $@ : 'Package did not return module object');
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
-        # TODO: hax::package_unload();
-        return;
-    }
-    
-    # fire module initialize. if the fire was stopped, give up.
-    if (my $stopper = $mod->fire_event('init')->stopper) {
-        $api->_log('mod_load_fail', $mod_name, "Initialization canceled by '$stopper'");
-        @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
-        # TODO: hax::package_unload();
+        package_unload($pkg);
         return;
     }
     
     # make engine listener of module.
     $mod->add_listener($api, 'module');
+    
+    # fire module initialize. if the fire was stopped, give up.
+    if (my $stopper = $mod->fire_event('init')->stopper) {
+        $api->_log('mod_load_fail', $mod_name, "Initialization canceled by '$stopper'");
+        @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
+        package_unload($pkg);
+        return;
+    }
     
     $api->_log('mod_load_comp', $mod_name);
     return $mod_name;
@@ -217,8 +221,9 @@ sub _load_module_requirements {
     my ($api, $info) = @_;
     
     # module does not depend on any other modules.
-    return unless $info->{depends}{modules};
-    return unless ref $info->{depends}{modules} eq 'ARRAY';
+    my $mods = $info->{depends}{modules};
+    return unless $mods;
+    $info->{depends}{modules} = [$mods] if ref $mods ne 'ARRAY';
     
     foreach my $mod_name (@{ $info->{depends}{modules} }) {
     
@@ -259,13 +264,25 @@ sub _get_module_info {
         $api->_log('mod_load_fail', $mod_name, "JSON parsing of module info failed: $@");
         return;
     }
+    
+    # JSON was valid. now let's check the modified times.
+    else {
+        my $pkg_modified = (stat "$mod_dir/$mod_last_name.pm"  )[9];
+        my $man_modified = (stat "$mod_dir/$mod_last_name.json")[9];
+        
+        # the manifest file is more recent or equal to the package file.
+        # the JSON info is therefore up-to-date
+        if ($man_modified >= $pkg_modified) {
+            return $info;
+        }
+        
+    }
 
     # try reading comments.
     open my $fh, '<', "$mod_dir/$mod_last_name.pm"
     or $api->_log('mod_load_fail', $mod_name, "Could not open file: $!") and return;
     
     # parse for variables.
-
     while (my $line = <$fh>) {
         next unless $line =~ m/^#\s*@([\.\w]+)\s*:(.+)$/;
         my ($var_name, $perl_value) = ($1, $2);
@@ -308,15 +325,27 @@ sub _get_module_info {
     }
     
     # check for required module info values.
+    $info->{name} = { full => $info->{name} } if !ref $info->{name};
     foreach my $require (
-        [   'name.short',   $info->{name}{short}    ],
-        [   'name.full',    $info->{name}{full}     ],
-        [   'name.package', $info->{name}{package}  ],
-        [   'version',      $info->{version}        ]
+        #[ 'name',   'short'   ],
+        #[ 'name',   'full'    ],
+        #[ 'name',   'package' ],
+        [ 'name'        ],
+        [ 'package'     ],
+        [ 'version'     ]
     ) {
-        next if defined $require->[1];
-        $api->_log('mod_load_fail', $mod_name, "Mandatory info '$$require[0]' not present");
+        my ($h, $n) = ($info, '');
+        while (my $next = shift @$require) {
+            $n .= "$h.";
+            $h  = $h->{$next};
+        }
+        next if defined $h;
+        
+        # not present.
+        chop $n;
+        $api->_log('mod_load_fail', $mod_name, "Mandatory info '$n' not present");
         return;
+        
     }
     
     return $info;
@@ -328,11 +357,25 @@ sub _get_module_info {
 
 # unload a module.
 sub unload_module {
+    my ($api, $mod) = @_;
+    
     # TODO: check if any loaded modules are dependent on this one
+    if (my @dependents = $mod->dependents) {
+        $api->_log(
+        $api->unload_module($_) foreach @dependents;
+    }
+    
     # TODO: remove methods registered by this module.
-    # TODO: built in callback will call 'void' in the module package.
-    #       $mod->fire(void)
-    # TODO: call $mod->_delete_managed_events or something  
+    
+    # fire module void. if the fire was stopped, give up.
+    if (my $stopper = $mod->fire_event('void')->stopper) {
+        $api->_log('mod_load_fail', $mod_name, "Module unload canceled by '$stopper'");
+        return;
+    }
+    
+    # unregister all managed event callbacks.
+    $mod->_delete_managed_events();
+    
 }
 
 ########################
@@ -343,7 +386,7 @@ sub unload_module {
 sub get_module {
     my ($api, $mod_name) = @_;
     foreach (@{ $api->{loaded} }) {
-        return $_ if $_->{name}{full} eq $mod_name;
+        return $_ if $_->name eq $mod_name;
     }
     return;
 }
@@ -352,7 +395,7 @@ sub get_module {
 sub package_to_module {
     my ($api, $package) = @_;
     foreach (@{ $api->{loaded} }) {
-        return $_ if $_->{name}{package} eq $package;
+        return $_ if $_->package eq $package;
     }
     return;
 }
@@ -377,6 +420,21 @@ sub store {
 sub retrieve {
     my ($api, $key) = @_;
     return $api->{store}{$key};
+}
+
+# adds the item to a list store.
+# if the store doesn't exist, creates it.
+sub list_store_add {
+    my ($api, $key, $value) = @_;
+    push @{ $api->{store}{$key} ||= [] }, $value;
+}
+
+# returns all the items in a list store.
+# if the store doesn't exist, this is
+# still safe and returns an empty list.
+sub list_store_items {
+    my ($api, $key) = @_;
+    return @{ $api->{store}{$key} || [] };
 }
 
 ################
@@ -404,20 +462,26 @@ sub has_feature {
     return;
 }
 
-################
-### INTERNAL ###
-################
+#####################
+### MISCELLANEOUS ###
+#####################
+
+my %syntax = (
+
+    mod_load_begn => '%s(%s): INITIATING MODULE LOAD',
+    mod_load_info => '%s(%s): %s',
+    mod_load_warn => '%s(%s): Warning: %s',
+    mod_load_fail => '%s(%s): *** FAILED TO LOAD *** %s',
+    mod_load_comp => '%s(%s): MODULE LOADED SUCCESSFULLY',
+
+    mod_unload_begn => '%s(%s): PREPARING TO UNLOAD',
+    mod_unload_info => '%s(%s): %s'
+
+);
 
 # API log.
 sub _log {
     my ($api, $type, $syn) = (shift, shift);
-    state %syntax = (
-        mod_load_begn => '%s(%s): BEGINNING MODULE LOAD',
-        mod_load_info => '%s(%s): %s',
-        mod_load_warn => '%s(%s): Warning: %s',
-        mod_load_fail => '%s(%s): *** FAILED TO LOAD *** %s',
-        mod_load_comp => '%s(%s): MODULE LOADED SUCCESSFULLY'
-    );
     $syn = $syntax{$type};
     return unless defined $syn;
     

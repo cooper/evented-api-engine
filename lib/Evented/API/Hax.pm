@@ -6,6 +6,8 @@ use warnings;
 use strict;
 use 5.010;
 
+use Module::Loaded;
+
 our $VERSION = $Evented::API::Engine::VERSION;
 
 # exported import subroutine.
@@ -81,6 +83,13 @@ sub export_code {
     *{"${package}::$sub_name"} = $code;
 }
 
+# delete a subroutine.
+sub delete_code {
+    my ($package, $sub_name) = @_;
+    no strict 'refs';
+    *{"${package}::$sub_name"} = undef;
+}
+
 # adds a package to an ISA list if the
 # package does not inherit from it already.
 # package_make_child('Evented::Person', 'Evented::Object', 1)
@@ -102,6 +111,23 @@ sub make_child {
     
     return 1;
     
+}
+
+# unload a package and delete its symbols.
+# package_unload('My::Package')
+sub package_unload {
+    my $class = shift;
+    no strict 'refs';
+    @{ $class . '::ISA' } = ();
+    
+    my $symtab = $class.'::';
+    for my $symbol (keys %$symtab) {
+        next if $symbol =~ /\A[^:]+::\z/;
+        delete $symtab->{$symbol};
+    }
+    
+    mark_as_unloaded($class);
+    return 1;
 }
 
 1;
