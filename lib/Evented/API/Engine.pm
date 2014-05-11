@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '1.7';
+our $VERSION = '1.8';
 
 # create a new API Engine.
 #
@@ -165,12 +165,11 @@ sub load_module {
     # fetch module information.
     my $info = $api->_get_module_info($mod_name, $mod_dir, $mod_last_name);
     return if not defined $info;
-    
-    my $pkg = $info->{package};
-   
+    my $pkg = $info->{package} or return;
+
     # load required modules here.
     # FIXME: if these are loaded, then the module fails later, these remain loaded.
-    $api->_load_module_requirements($info);
+    $api->_load_module_requirements($info) or return;
         
     # make the package a child of Evented::API::Module.
     make_child($pkg, 'Evented::API::Module'); 
@@ -196,7 +195,7 @@ sub load_module {
     
     # probably an error, or the module just didn't return $mod.
     if (!$return || $return != $mod) {
-        $api->_log("Load failed: $mod_name; ".($@ || 'Package did not return module object'));
+        $api->_log("Load failed: $mod_name; ".($@ || $! || 'Package did not return module object'));
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
         package_unload($pkg);
         return;
@@ -206,6 +205,7 @@ sub load_module {
     $mod->add_listener($api, 'module');
     
     # fire module initialize. if the fire was stopped, give up.
+    $api->_log("Initializing $mod_name");
     if (my $stopper = $mod->fire_event('init')->stopper) {
         $api->_log("Load failed: $mod_name; Initialization canceled by '$stopper'");
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
@@ -223,9 +223,9 @@ sub _load_module_requirements {
     
     # module does not depend on any other modules.
     my $mods = $info->{depends}{modules};
-    return unless $mods;
-    $info->{depends}{modules} = [$mods] if ref $mods ne 'ARRAY';
+    return 1 unless $mods;
     
+    $info->{depends}{modules} = [$mods] if ref $mods ne 'ARRAY';
     foreach my $mod_name (@{ $info->{depends}{modules} }) {
     
         # dependency already loaded.
@@ -235,16 +235,20 @@ sub _load_module_requirements {
         }
         
         # prevent endless loops.
-        if ($info->{name}{full} eq $mod_name) {
+        if ($info->{name} eq $mod_name) {
             $api->_log("Requirements of $$info{name}{full}; Module depends on itself");
             next;
         }
         
         # load the dependency.
         $api->_log("Requirements of $$info{name}{full}; Loading dependency $mod_name");
-        $api->load_module($mod_name);
+        $api->load_module($mod_name) or
+            $api->_log("Load $$info{name}{full} failed; loading dependency $mod_name failed")
+            and return;
         
     }
+    
+    return 1;
 }
 
 # fetch module information.
@@ -274,6 +278,7 @@ sub _get_module_info {
         # the manifest file is more recent or equal to the package file.
         # the JSON info is therefore up-to-date
         if ($man_modified >= $pkg_modified) {
+            $info->{name} = { full => $info->{name} } if !ref $info->{name};
             return $info;
         }
         
@@ -465,20 +470,6 @@ sub has_feature {
 #####################
 ### MISCELLANEOUS ###
 #####################
-
-my %syntax = (
-
-    mod_load_begn => '%s(%s): INITIATING MODULE LOAD',
-    mod_load_info => '%s(%s): %s',
-    mod_load_warn => '%s(%s): Warning: %s',
-    mod_load_fail => '%s(%s): *** FAILED TO LOAD *** %s',
-    mod_load_comp => '%s(%s): MODULE LOADED SUCCESSFULLY',
-
-    mod_unload_begn => '%s(%s): PREPARING TO UNLOAD',
-    mod_unload_info => '%s(%s): %s',
-    mod_unload_fail => '%s(%s): failed to unload: %s'
-
-);
 
 # API log.
 sub _log {

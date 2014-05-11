@@ -20,8 +20,8 @@ sub init {
     my $fire = shift;
     
     # add methods.
-    *API::Module::register_engine_method = *register_engine_method;
-    *API::Module::register_module_method = *register_module_method;
+    export_code('Evented::API::Engine', 'register_engine_method', \&register_engine_method);
+    export_code('Evented::API::Module', 'register_module_method', \&register_module_method);
     
     # register events.
     $api->register_event('module.void' => \&any_void,
@@ -30,6 +30,7 @@ sub init {
         after            => 'api.engine.void'
     );
     
+    return 1;
 }
 
 # our module void.
@@ -37,8 +38,8 @@ sub void {
     my $fire = shift;
     
     # delete these methods.
-    undef *API::Module::register_engine_method;
-    undef *API::Module::register_module_method;
+    delete_method('Evented::API::Engine', 'register_engine_method');
+    delete_method('Evented::API::Module', 'register_module_method');
     
     # delete all methods of all modules.
     any_void($_) foreach @{ $api->{loaded} };
@@ -68,8 +69,9 @@ sub add_method {
         my ($obj, @args) = @_;
         
         # use Evented::Object's _fire_event() to use custom caller data.
-        Evented::Object::_fire_event($obj, "method:$method", [caller 1], @args);
+        my $fire = Evented::Object::_fire_event($obj, "method:$method", [caller 1], @args);
         
+        return $fire->last_return;
     });
 }
 
@@ -89,11 +91,12 @@ sub register_engine_method {
     }
     
     # store method information.
-    my $methods = $mod->retrieve('engine_methods', {})->{ $mod->full_name } //= {};
+    my $methods = $mod->retrieve('engine_methods', {})->{ $mod->name } //= {};
     $methods->{$name} = {
         %opts,
         code => $code
     };
+    $api->on("method:$name" => $code, with_evented_obj => 1);
     
     add_method('Evented::API::Engine', $name);
     return 1;
@@ -109,11 +112,12 @@ sub register_module_method {
     }
     
     # store method information.
-    my $methods = $mod->retrieve('module_methods', {})->{ $mod->full_name } //= {};
+    my $methods = $mod->retrieve('module_methods', {})->{ $mod->name } //= {};
     $methods->{$name} = {
         %opts,
         code => $code
     };
+    $api->on("module.method:$name" => $code, with_evented_obj => 1);
     
     add_method('Evented::API::Module', $name);
     return 1;

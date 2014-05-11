@@ -18,13 +18,27 @@ sub new {
     
     # TODO: check for required options.
     
+    my $returnCheck = sub {
+        my $fire = shift;
+        my %returns = %{ $fire->{$Evented::Object::props}{return} };
+        foreach my $cb_name (keys %returns) {
+            next if $returns{$cb_name};
+            $mod->_log("'$cb_name' returned a false value");
+            $fire->stop;
+        }
+    };
+    
     # default initialize handler.
     $mod->register_callback(init => sub {
             my $init = $mod->package->can('init') or return;
             $init->(@_);
         },
-        name     => 'api.engine.init',
+        name     => 'api.engine.initSubroutine',
         priority => 100
+    );
+    $mod->register_callback(init => $returnCheck,
+        name     => 'api.engine.returnCheck',
+        priority => -1000
     );
     
     # default void handler.
@@ -32,8 +46,12 @@ sub new {
             my $void = $mod->package->can('void') or return;
             $void->(@_);
         },
-        name     => 'api.engine.void',
+        name     => 'api.engine.voidSubroutine',
         priority => 100
+    );
+    $mod->register_callback(void => $returnCheck,
+        name     => 'api.engine.returnCheck',
+        priority => -1000
     );
     
     return $mod;
@@ -140,14 +158,22 @@ sub _delete_managed_events {
 ####################
 
 # returns the modules that this depends on.
-sub depends {
-    # TODO: do.
+sub dependencies {
+    return @{ shift->{dependencies} || [] };
 }
 
 # returns the module that depend on this.
 sub dependents {
     my $mod = shift;
-    $mod->api->{loaded}
+    my @mods;
+    foreach my $m (@{ $mod->api->{loaded} }) {
+        foreach my $dep ($m->dependencies) {
+            next unless $dep == $mod;
+            push @mods, $dep;
+            last;
+        }
+    }
+    return @mods;
 }
 
 1;
