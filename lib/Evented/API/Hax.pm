@@ -126,7 +126,7 @@ sub package_unload {
         delete $symtab->{$symbol};
     }
     
-    mark_as_unloaded($class);
+    mark_as_unloaded($class) if is_loaded($class);
     return 1;
 }
 

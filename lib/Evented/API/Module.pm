@@ -26,11 +26,12 @@ sub new {
             $mod->_log("'$cb_name' returned a false value");
             $fire->stop;
         }
+        return 1;
     };
     
     # default initialize handler.
     $mod->register_callback(init => sub {
-            my $init = $mod->package->can('init') or return;
+            my $init = $mod->package->can('init') or return 1;
             $init->(@_);
         },
         name     => 'api.engine.initSubroutine',
@@ -43,7 +44,7 @@ sub new {
     
     # default void handler.
     $mod->register_callback(void => sub {
-            my $void = $mod->package->can('void') or return;
+            my $void = $mod->package->can('void') or return 1;
             $void->(@_);
         },
         name     => 'api.engine.voidSubroutine',
@@ -64,6 +65,19 @@ sub api     { shift->{api}          }
 sub _log {
     my $mod = shift;
     $mod->api->_log("[$$mod{name}{full}] @_");
+}
+
+##################
+### SUBMODULES ###
+##################
+
+sub load_submodule {
+    my ($mod, $mod_name) = @_;
+    $mod->_log("Loading submodule $mod_name");
+    $mod->api->{indent}++;
+    my $ret = $mod->api->load_module($mod_name, [ $mod->{dir} ]);
+    $mod->api->{indent}--;
+    return $ret;
 }
 
 ####################
