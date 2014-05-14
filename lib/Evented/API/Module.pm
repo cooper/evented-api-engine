@@ -9,6 +9,8 @@ use 5.010;
 use Evented::Object;
 use parent 'Evented::Object';
 
+use Scalar::Util qw(blessed);
+
 our $VERSION = $Evented::API::Engine::VERSION;
 our $events  = $Evented::Object::events;
 
@@ -17,7 +19,6 @@ sub new {
     my $mod = bless \%opts, $class;
     
     # TODO: check for required options.
-    
     my $returnCheck = sub {
         my $fire = shift;
         my %returns = %{ $fire->{$Evented::Object::props}{return} };
@@ -126,7 +127,7 @@ sub list_store_items {
 # add an evented object to our managed list.
 sub manage_object {
     my ($mod, $eo) = @_;
-    return if !bless $mod || !$mod->isa('Evented::Object');
+    return if !blessed $mod || !$mod->isa('Evented::Object');
     my $count = managing_object($eo);
     return $count if $count;
     push @{ $mod->{managed_objects} ||= [] }, $eo;
@@ -149,6 +150,8 @@ sub release_object {
     foreach my $priority   (keys %{ $eo->{$events}{$event_name}       }) {
     foreach my $cb         (@{ $eo->{$events}{$event_name}{$priority} }) {
         next unless $cb->{caller}[0] eq $mod->package;
+        my $obtype = blessed $eo;
+        $mod->_log("Object release: $obtype.$event_name: $$cb{name}");
         $eo->delete_callback($event_name, $cb->{name});
     }}}
     
@@ -163,8 +166,15 @@ sub release_object {
 # delete all the events managed by this module.
 sub _delete_managed_events {
     my $mod = shift;
-    $mod->release_object($_, 1) foreach @{ $mod->{managed_objects} };
-    $mod->{managed_objects} = [];
+    my $objects = $mod->{managed_objects} or return;
+    
+    $mod->_log("Releasing managed evented objects");
+    $mod->api->{indent}++;
+    
+    $mod->release_object($_, 1) foreach @$objects;
+    
+    @$objects = ();
+    $mod->api->{indent}--;
 }
 
 ####################

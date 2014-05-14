@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '1.9';
+our $VERSION = '2.0';
 
 # create a new API Engine.
 #
@@ -223,13 +223,16 @@ sub load_module {
     
     # fire module initialize. if the fire was stopped, give up.
     $api->_log("[$mod_name] Initializing");
+    $api->{indent}++;
     if (my $stopper = $mod->fire_event('init')->stopper) {
         $api->_log("[$mod_name] Load FAILED: Initialization canceled by '$stopper'");
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
         package_unload($pkg);
+        $api->{indent}--;
         return;
     }
     
+    $api->{indent}--;
     $api->_log("[$mod_name] Loaded successfully");
     return $mod;
 }
