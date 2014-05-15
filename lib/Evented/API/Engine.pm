@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '2.0';
+our $VERSION = '2.1';
 
 # create a new API Engine.
 #
@@ -233,13 +233,21 @@ sub load_module {
     }
     
     $api->{indent}--;
-    $api->_log("[$mod_name] Loaded successfully");
+    $api->_log("[$mod_name] Loaded successfully ($$mod{version})");
     return $mod;
 }
 
 # loads the modules a module depends on.
 sub _load_module_requirements {
     my ($api, $info) = @_;
+    
+    #
+    # TODO: @depends.submodules: autoload submodules.
+    #       different than @depends.modules in that
+    #       it will allow the whole thing to be unloaded
+    #       at once, regardless of whether the submodules
+    #       "depend" on the parent (all will automatically)
+    #
     
     # module does not depend on any other modules.
     my $mods = $info->{depends}{modules} or return 1;
@@ -311,6 +319,7 @@ sub _get_module_info {
     or $api->_log("[$mod_name] Load FAILED: Could not open file: $!") and return;
     
     # parse for variables.
+    my $old_version = delete $info->{version} || 0;
     while (my $line = <$fh>) {
         next unless $line =~ m/^#\s*@([\.\w]+)\s*:(.+)$/;
         my ($var_name, $perl_value) = ($1, $2);
@@ -336,8 +345,16 @@ sub _get_module_info {
         }
         
     }
-    
     close $fh;
+    
+    # automatic versioning.
+    if (!defined $info->{version}) {
+        $info->{version} = $old_version + 0.1;
+        $api->_log("[$mod_name] Upgrade: $old_version -> $$info{version} (automatic)");
+    }
+    elsif ($info->{version} != $old_version) {
+        $api->_log("[$mod_name] Upgrade: $old_version -> $$info{version}");
+    }
     
     # write JSON information.
     if ($info) {
@@ -418,7 +435,7 @@ sub unload_module {
     # Safe point: from here, we can assume it will be unloaded for sure.
     
     # unregister all managed event callbacks.
-    $mod->_delete_managed_events();
+    #$mod->_delete_managed_events();
     $mod->fire_event('unload');
 
     # remove from loaded.
