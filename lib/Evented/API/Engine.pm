@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '2.1';
+our $VERSION = '2.2';
 
 # create a new API Engine.
 #
@@ -210,8 +210,16 @@ sub load_module {
     $mod->fire_event('set_variables', $pkg);
         
     # load the module.
+    my $return;
     $api->_log("[$mod_name] Evaluating main package");
-    my $return = do "$mod_dir/$mod_last_name.pm";
+    {
+        local $SIG{__WARN__} = sub {
+            my $warn = shift;
+            chomp $warn;
+            $api->_log("[$mod_name] WARNING: $warn");
+        };
+        $return = do "$mod_dir/$mod_last_name.pm";
+    }
     
     # probably an error, or the module just didn't return $mod.
     if (!$return || $return != $mod) {
@@ -540,7 +548,13 @@ sub has_feature {
 # API log.
 sub _log {
     my ($api, $msg) = @_;
-    return $api->fire_event(log => ('    ' x $api->{indent}).$msg);
+    my @msgs = split $/, $msg;
+    $api->fire_event(log => ('    ' x $api->{indent}).shift(@msgs));
+    my $i = $api->{indent} + 1;
+    while (my $next = shift @msgs) {
+        $api->fire_event(log => ('    ' x $i)."... $next");
+    }
+    return 1;
 }
 
 # read contents of file.

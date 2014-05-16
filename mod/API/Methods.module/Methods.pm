@@ -48,11 +48,11 @@ sub void {
 
 # any module void.
 sub any_void {
-    my $module = shift;
+    my $mod = shift;
     
     # fetch methods.
-    my $e_methods = $module->retrieve('engine_methods', {});
-    my $m_methods = $module->retrieve('module_methods', {});
+    my $e_methods = $mod->retrieve('engine_methods', {});
+    my $m_methods = $mod->retrieve('module_methods', {});
 
     # delete methods.
     delete_method('Evented::API::Engine', $_) foreach keys %$e_methods;
@@ -91,8 +91,7 @@ sub register_engine_method {
     }
     
     # store method information.
-    my $methods = $mod->retrieve('engine_methods', {})->{ $mod->name } //= {};
-    $methods->{$name} = {
+    $mod->retrieve('engine_methods', {})->{$name} = {
         %opts,
         code => $code
     };
@@ -112,8 +111,7 @@ sub register_module_method {
     }
     
     # store method information.
-    my $methods = $mod->retrieve('module_methods', {})->{ $mod->name } //= {};
-    $methods->{$name} = {
+    $mod->retrieve('module_methods', {})->{$name} = {
         %opts,
         code => $code
     };
