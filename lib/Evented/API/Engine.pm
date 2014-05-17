@@ -15,7 +15,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '2.4';
+our $VERSION = '2.5';
 
 # create a new API Engine.
 #

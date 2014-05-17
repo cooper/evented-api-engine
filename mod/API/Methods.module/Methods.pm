@@ -24,7 +24,7 @@ sub init {
     export_code('Evented::API::Module', 'register_module_method', \&register_module_method);
     
     # register events.
-    $api->register_event('module.unload' => \&any_void,
+    $api->register_event('module.unload' => \&unload_module,
         name => 'api.engine.methods',
         with_evented_obj => 1
     );
