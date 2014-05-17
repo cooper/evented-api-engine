@@ -53,28 +53,6 @@ sub new {
         name     => 'api.engine.voidSubroutine',
         priority => 100
     );
-    
-    # void handler for destroying events callbacks.
-    $mod->on(void => sub {
-        my $done;
-        foreach my $e ($mod->list_store_items('managed_events')) {
-            my ($eo, $event_name, $name) = @$e;
-            
-            # first one.
-            if (!$done) {
-                $mod->_log('Destroying managed event callbacks');
-                $mod->api->{indent}++;
-                $done = 1;
-            }
-            
-            # delete this callback.
-            $eo->delete_callback($event_name, $name);
-            $mod->_log("Event: $event_name ($name) deleted from ".(ref($eo) || $eo));
-            
-        }
-        $mod->api->{indent}-- if $done;
-        return 1;
-    }, name => 'api.engine.deleteEvents');
     $mod->on(void => $returnCheck,
         name     => 'api.engine.returnCheck',
         priority => -1000
@@ -123,6 +101,28 @@ sub new {
             return 1;
         }, 1);
     });
+    
+    # unload handler for destroying events callbacks.
+    $mod->on(unload => sub {
+        my $done;
+        foreach my $e ($mod->list_store_items('managed_events')) {
+            my ($eo, $event_name, $name) = @$e;
+            
+            # first one.
+            if (!$done) {
+                $mod->_log('Destroying managed event callbacks');
+                $mod->api->{indent}++;
+                $done = 1;
+            }
+            
+            # delete this callback.
+            $eo->delete_callback($event_name, $name);
+            $mod->_log("Event: $event_name ($name) deleted from ".(ref($eo) || $eo));
+            
+        }
+        $mod->api->{indent}-- if $done;
+        return 1;
+    }, name => 'api.engine.deleteEvents');
     
     return $mod;
 }
@@ -176,7 +176,7 @@ sub list_store_add {
 # $max = stop searching when removed this many (optional)
 sub list_store_remove_matches {
     my ($mod, $key, $sub, $max) = @_;
-    my @before  = @{ $mod->{store}{$key} };
+    my @before  = @{ $mod->{store}{$key} or return };
     my ($removed, @after) = 0;
     while (my $item = shift @before) {
         

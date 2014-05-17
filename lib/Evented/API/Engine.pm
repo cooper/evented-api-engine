@@ -9,14 +9,13 @@ use 5.010;
 
 use JSON ();
 use Scalar::Util qw(weaken blessed);
-
 use Evented::Object;
 use parent 'Evented::Object';
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '2.2';
+our $VERSION = '2.3';
 
 # create a new API Engine.
 #
@@ -411,7 +410,7 @@ sub _get_module_info {
 # unload a module.
 # returns the NAME of the module unloaded.
 sub unload_module {
-    my ($api, $mod) = @_;
+    my ($api, $mod, $unload_dependents) = @_;
     
     # not blessed, search for module.
     if (!blessed $mod) {
@@ -422,17 +421,9 @@ sub unload_module {
         }
     }
 
-
     my $mod_name = $mod->name;
     $mod->_log('Unloading');
     
-    # check if any loaded modules are dependent on this one.
-    if (my @dependents = $mod->dependents) {
-        @dependents = grep { $_->name } @dependents;
-        $mod->_log("Can't unload: Dependent modules: @dependents");
-        return;
-    }
-        
     # fire module void. if the fire was stopped, give up.
     $mod->_log('Voiding');
     if (my $stopper = $mod->fire_event('void')->stopper) {
@@ -440,15 +431,29 @@ sub unload_module {
         return;
     }
     
-    # Safe point: from here, we can assume it will be unloaded for sure.
+    # check if any loaded modules are dependent on this one.
+    my @dependents = $mod->dependents;
+    if (!$unload_dependents && @dependents) {
+        @dependents = grep { $_->name } @dependents;
+        $mod->_log("Can't unload: Dependent modules: @dependents");
+        return;
+    }
+    elsif ($unload_dependents) {
+        $mod->_log("Unloading dependent modules");
+        $api->{indent}++;
+        $api->unload_module($_, 1) foreach @dependents;
+        $api->{indent}--;        
+    }
     
+    # Safe point: from here, we can assume it will be unloaded for sure.
+
     # unregister all managed event callbacks.
     #$mod->_delete_managed_events();
     $mod->fire_event('unload');
 
     # remove from loaded.
     @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
-    
+
     # destroy the package.
     $mod->_log("Destroying package $$mod{package}");
     package_unload($mod->{package});
@@ -556,6 +561,24 @@ sub _log {
     }
     return 1;
 }
+#
+#sub _log {
+#    my ($api, $msg) = @_;
+#    my @msgs = split $/, $msg;
+#    $Text::Wrap::columns = 80;
+#    
+#    my $indent = '    ' x $api->{indent};
+#    my $first  = shift(@msgs);
+#    $api->fire_event(log => $_) foreach split "\n", wrap($indent, $indent.'    ... ', $first);
+#    
+#    my $i = $api->{indent} + 1;
+#    while (my $next = shift @msgs) {
+#        $indent = '    ' x $i;
+#        $next   = "->  $next";
+#        $api->fire_event(log => $_) foreach split "\n", wrap($indent, $indent.'    ... ', $next);
+#    }
+#    return 1;
+#}
 
 # read contents of file.
 sub _slurp {

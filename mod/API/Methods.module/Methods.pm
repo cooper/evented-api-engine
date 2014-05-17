@@ -44,6 +44,7 @@ sub void {
     # delete all methods of all modules.
     any_void($_) foreach @{ $api->{loaded} };
     
+    return 1;
 }
 
 # any module void.

@@ -87,7 +87,7 @@ sub export_code {
 sub delete_code {
     my ($package, $sub_name) = @_;
     no strict 'refs';
-    *{"${package}::$sub_name"} = undef;
+    undef *{"${package}::$sub_name"};
 }
 
 # adds a package to an ISA list if the
