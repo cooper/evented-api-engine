@@ -294,7 +294,7 @@ sub dependents {
     foreach my $m (@{ $mod->api->{loaded} }) {
         foreach my $dep ($m->dependencies) {
             next unless $dep == $mod;
-            push @mods, $dep;
+            push @mods, $m;
             last;
         }
     }

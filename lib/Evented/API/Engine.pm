@@ -15,7 +15,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '2.3';
+our $VERSION = '2.4';
 
 # create a new API Engine.
 #
@@ -191,6 +191,12 @@ sub load_module {
     $info->{name}{last} = $mod_last_name;
     my $mod = $pkg->new(%$info, dir => $mod_dir);
     push @{ $api->{loaded} }, $mod;
+    
+    # add dependencies.
+    $mod->{dependencies} = [
+        map { $api->get_module($_) }
+        @{ $info->{depends}{modules} || [] }
+    ];
     
     # make engine listener of module.
     $mod->add_listener($api, 'module');
@@ -424,6 +430,15 @@ sub unload_module {
     my $mod_name = $mod->name;
     $mod->_log('Unloading');
     
+    # check if any loaded modules are dependent on this one.
+    # if we're unloading recursively, do so after voiding.
+    my @dependents = $mod->dependents;
+    if (!$unload_dependents && @dependents) {
+        my $dependents = join ', ', map { $_->name } @dependents;
+        $mod->_log("Can't unload: Dependent modules: $dependents");
+        return;
+    }
+    
     # fire module void. if the fire was stopped, give up.
     $mod->_log('Voiding');
     if (my $stopper = $mod->fire_event('void')->stopper) {
@@ -431,18 +446,12 @@ sub unload_module {
         return;
     }
     
-    # check if any loaded modules are dependent on this one.
-    my @dependents = $mod->dependents;
-    if (!$unload_dependents && @dependents) {
-        @dependents = grep { $_->name } @dependents;
-        $mod->_log("Can't unload: Dependent modules: @dependents");
-        return;
-    }
-    elsif ($unload_dependents) {
+    # if we're unloading recursively, do so now.
+    if ($unload_dependents && @dependents) {
         $mod->_log("Unloading dependent modules");
         $api->{indent}++;
         $api->unload_module($_, 1) foreach @dependents;
-        $api->{indent}--;        
+        $api->{indent}--;
     }
     
     # Safe point: from here, we can assume it will be unloaded for sure.
@@ -455,6 +464,7 @@ sub unload_module {
     @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
 
     # destroy the package.
+    $mod->{UNLOADED} = 1;
     $mod->_log("Destroying package $$mod{package}");
     package_unload($mod->{package});
     

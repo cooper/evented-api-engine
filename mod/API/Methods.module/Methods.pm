@@ -24,10 +24,9 @@ sub init {
     export_code('Evented::API::Module', 'register_module_method', \&register_module_method);
     
     # register events.
-    $api->register_event('module.void' => \&any_void,
-        name             => 'api.engine.methods.any.void',
-        with_evented_obj => 1,
-        after            => 'api.engine.void'
+    $api->register_event('module.unload' => \&any_void,
+        name => 'api.engine.methods',
+        with_evented_obj => 1
     );
     
     return 1;
@@ -42,13 +41,13 @@ sub void {
     delete_method('Evented::API::Module', 'register_module_method');
     
     # delete all methods of all modules.
-    any_void($_) foreach @{ $api->{loaded} };
+    unload_module($_) foreach @{ $api->{loaded} };
     
     return 1;
 }
 
-# any module void.
-sub any_void {
+# any module unloaded.
+sub unload_module {
     my $mod = shift;
     
     # fetch methods.
