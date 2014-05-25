@@ -108,6 +108,10 @@ sub new {
         foreach my $e ($mod->list_store_items('managed_events')) {
             my ($eo, $event_name, $name) = @$e;
             
+            # this is a weak reference --
+            # if undefined, it was disposed of.
+            return unless $eo;
+            
             # first one.
             if (!$done) {
                 $mod->_log('Destroying managed event callbacks');
