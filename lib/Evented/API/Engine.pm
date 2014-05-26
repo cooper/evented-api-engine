@@ -15,7 +15,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '2.5';
+our $VERSION = '2.6';
 
 # create a new API Engine.
 #
@@ -109,13 +109,13 @@ sub load_modules {
 
 # load a module.
 sub load_module {
-    my ($api, $mod_name, $dirs) = @_;
+    my ($api, $mod_name, $dirs, $is_submodule) = @_;
     return unless $mod_name;
     $api->_log("[$mod_name] Loading") unless $dirs;
     
     # we are in a load block.
     # we are not in the middle of loading this particular module.
-    if ($api->{load_block} && !$dirs) {
+    if (!$is_submodule && $api->{load_block} && !$dirs) {
 
         # make sure this module has not been attempted.
         if ($api->{load_block}{$mod_name}) {
@@ -129,14 +129,14 @@ sub load_module {
     }
     
     # check here if the module is loaded already.
-    if ($api->module_loaded($mod_name)) {
+    if (!$is_submodule && $api->module_loaded($mod_name)) {
         $api->_log("[$mod_name] Load FAILED: Module already loaded");
         return;
     }
     
     # if there is no list of search directories, we have not attempted any loading.
     if (!$dirs) {
-        return $api->load_module($mod_name, [ @{ $api->{mod_inc} } ]); # to prevent modification
+        return $api->load_module($mod_name, [ @{ $api->{mod_inc} } ], $is_submodule); # to prevent modification
     }
     
     # otherwise, we are searching the next directory in the list.
@@ -164,7 +164,7 @@ sub load_module {
     my $mod_dir_2      = "$search_dir/$mod_name_file/$mod_last_name.module";
     if    (-d $mod_dir_1) { $mod_dir = $mod_dir_1 }
     elsif (-d $mod_dir_2) { $mod_dir = $mod_dir_2 }
-    else                  { return $api->load_module($mod_name, $dirs) }
+    else                  { return $api->load_module($mod_name, $dirs, $is_submodule) }
     
     # we located the module directory.
     # now we must ensure all required files are present.
@@ -455,6 +455,11 @@ sub unload_module {
     }
     
     # Safe point: from here, we can assume it will be unloaded for sure.
+    
+    # unload submodules.
+    foreach my $sub ($mod->submodules) {
+        $api->unload_module($sub, 1);
+    }
 
     # unregister all managed event callbacks.
     #$mod->_delete_managed_events();

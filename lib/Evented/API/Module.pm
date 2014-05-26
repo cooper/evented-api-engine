@@ -131,9 +131,10 @@ sub new {
     return $mod;
 }
 
-sub name    { shift->{name}{full}   }
-sub package { shift->{package}      }
-sub api     { shift->{api}          }
+sub name       { shift->{name}{full}            }
+sub package    { shift->{package}               }
+sub api        { shift->{api}                   }
+sub submodules { @{ shift->{submodules} || [] } }
 
 sub _log {
     my $mod = shift;
@@ -148,8 +149,15 @@ sub load_submodule {
     my ($mod, $mod_name) = @_;
     $mod->_log("Loading submodule $mod_name");
     $mod->api->{indent}++;
-    my $ret = $mod->api->load_module($mod_name, [ $mod->{dir} ]);
+    my $ret = $mod->api->load_module($mod_name, [ $mod->{dir} ], 1);
     $mod->api->{indent}--;
+    
+    # add to submodules list. hold weak reference to parent module.
+    if ($ret) {
+        push @{ $mod->{submodules} ||= [] }, $ret;
+        weaken($ret->{parent} = $mod);
+    }
+    
     return $ret;
 }
 
