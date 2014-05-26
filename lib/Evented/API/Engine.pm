@@ -15,7 +15,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '2.6';
+our $VERSION = '2.7';
 
 # create a new API Engine.
 #
@@ -208,7 +208,7 @@ sub load_module {
     $mod->on(set_variables => sub {
         set_symbol($pkg, {
             '$api'      => $api,
-            '$mod'      => $mod,
+            '$mod'      => shift->object,
             '$VERSION'  => $info->{version}
         });
     }, name => 'api.engine.setVariables');
@@ -416,7 +416,7 @@ sub _get_module_info {
 # unload a module.
 # returns the NAME of the module unloaded.
 sub unload_module {
-    my ($api, $mod, $unload_dependents) = @_;
+    my ($api, $mod, $unload_dependents, $force) = @_;
     
     # not blessed, search for module.
     if (!blessed $mod) {
@@ -425,6 +425,12 @@ sub unload_module {
             $api->_log("[$_[1]] Unload: not loaded");
             return;
         }
+    }
+
+    # if this is a submodule, it cannot be unloaded this way.
+    if ($mod->{parent} && !$force) {
+        $api->_log("[$_[1]] Unload: submodule cannot be unloaded independently of parent");
+        return;
     }
 
     my $mod_name = $mod->name;
@@ -458,7 +464,7 @@ sub unload_module {
     
     # unload submodules.
     foreach my $sub ($mod->submodules) {
-        $api->unload_module($sub, 1);
+        $api->unload_module($sub, 1, 1);
     }
 
     # unregister all managed event callbacks.

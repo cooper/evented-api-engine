@@ -26,7 +26,7 @@ sub new {
         my %returns = %{ $fire->{$Evented::Object::props}{return} };
         foreach my $cb_name (keys %returns) {
             next if $returns{$cb_name};
-            $mod->_log("'$cb_name' returned a false value");
+            $fire->object->_log("'$cb_name' returned a false value");
             $fire->stop;
         }
         return 1;
@@ -34,7 +34,7 @@ sub new {
     
     # default initialize handler.
     $mod->on(init => sub {
-            my $init = $mod->package->can('init') or return 1;
+            my $init = shift->object->package->can('init') or return 1;
             $init->(@_);
         },
         name     => 'api.engine.initSubroutine',
@@ -47,7 +47,7 @@ sub new {
     
     # default void handler.
     $mod->on(void => sub {
-            my $void = $mod->package->can('void') or return 1;
+            my $void = shift->object->package->can('void') or return 1;
             $void->(@_);
         },
         name     => 'api.engine.voidSubroutine',
@@ -62,6 +62,7 @@ sub new {
     Evented::Object::add_class_monitor($mod->{package}, $mod);
     $mod->on('monitor:register_callback' => sub {
         my ($event, $eo, $event_name, $cb) = @_;
+        my $mod = $event->object;
         
         # permanent - ignore.
         if ($cb->{permanent}) {
@@ -80,6 +81,7 @@ sub new {
     # deleted all callbacks for an event.
     $mod->on('monitor:delete_event' => sub {
         my ($event, $eo, $event_name) = @_;
+        my $mod = $event->object;
         $mod->_log("Event: $event_name (all callbacks) deleted from ".(ref($eo) || $eo));
         $mod->list_store_remove_matches('managed_events', sub {
             my $e = shift;
@@ -92,6 +94,7 @@ sub new {
     # deleted a specific callback.
     $mod->on('monitor:delete_callback' => sub {
         my ($event, $eo, $event_name, $cb_name) = @_;
+        my $mod = $event->object;
         $mod->_log("Event: $event_name ($cb_name) deleted from ".(ref($eo) || $eo));
         $mod->list_store_remove_matches('managed_events', sub {
             my $e = shift;
@@ -104,7 +107,7 @@ sub new {
     
     # unload handler for destroying events callbacks.
     $mod->on(unload => sub {
-        my $done;
+        my $done; my $mod = shift->object;
         foreach my $e ($mod->list_store_items('managed_events')) {
             my ($eo, $event_name, $name) = @$e;
             
@@ -152,9 +155,11 @@ sub load_submodule {
     my $ret = $mod->api->load_module($mod_name, [ $mod->{dir} ], 1);
     $mod->api->{indent}--;
     
-    # add to submodules list. hold weak reference to parent module.
+    # add weakly to submodules list. hold weak reference to parent module.
     if ($ret) {
-        push @{ $mod->{submodules} ||= [] }, $ret;
+        my $a = $mod->{submodules} ||= [];
+        push @$a, $ret;
+        weaken($a->[$#$a]);
         weaken($ret->{parent} = $mod);
     }
     
