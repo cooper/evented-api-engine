@@ -15,7 +15,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '2.7';
+our $VERSION = '2.8';
 
 # create a new API Engine.
 #
@@ -475,7 +475,9 @@ sub unload_module {
     @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
 
     # destroy the package.
+    $mod->delete_all_events();
     $mod->{UNLOADED} = 1;
+    bless $mod, 'Evented::API::Module';
     $mod->_log("Destroying package $$mod{package}");
     package_unload($mod->{package});
     
