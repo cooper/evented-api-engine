@@ -85,6 +85,7 @@ sub new {
         $mod->_log("Event: $event_name (all callbacks) deleted from ".(ref($eo) || $eo));
         $mod->list_store_remove_matches('managed_events', sub {
             my $e = shift;
+            return 1 if not defined $e->[0]; # disposed
             return unless $eo         == $e->[0];
             return unless $event_name eq $e->[1];
             return 1;
@@ -98,6 +99,7 @@ sub new {
         $mod->_log("Event: $event_name ($cb_name) deleted from ".(ref($eo) || $eo));
         $mod->list_store_remove_matches('managed_events', sub {
             my $e = shift;
+            return 1 if not defined $e->[0]; # disposed
             return unless $eo         == $e->[0];
             return unless $event_name eq $e->[1];
             return unless $cb_name    eq $e->[2];
