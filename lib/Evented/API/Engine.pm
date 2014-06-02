@@ -15,7 +15,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '2.8';
+our $VERSION = '2.9';
 
 # create a new API Engine.
 #
@@ -415,8 +415,13 @@ sub _get_module_info {
 
 # unload a module.
 # returns the NAME of the module unloaded.
+# 
+# $unload_dependents = recursively unload all dependent modules as well
+# $force = if the module is a submodule, force it to unload by unloading parent also
+# $unloading_submodule = internal use only - means the parent is unloading a submodule
+#
 sub unload_module {
-    my ($api, $mod, $unload_dependents, $force) = @_;
+    my ($api, $mod, $unload_dependents, $force, $unloading_submodule) = @_;
     
     # not blessed, search for module.
     if (!blessed $mod) {
@@ -428,8 +433,19 @@ sub unload_module {
     }
 
     # if this is a submodule, it cannot be unloaded this way.
-    if ($mod->{parent} && !$force) {
-        $api->_log("[$_[1]] Unload: submodule cannot be unloaded independently of parent");
+    if ($mod->{parent} && !$unloading_submodule) {
+    
+        # if we're forcing to unload, we just gotta unload the parent.
+        # this module will be unloaded because of $unload_dependents, so return.
+        if ($force) {
+            $api->unload_module($mod->{parent}, 1, 1);
+        }
+        
+        # not forcing unload. give up.
+        else {
+            $mod->_log("Unload: submodule cannot be unloaded independently of parent");
+        }
+        
         return;
     }
 
@@ -456,7 +472,7 @@ sub unload_module {
     if ($unload_dependents && @dependents) {
         $mod->_log("Unloading dependent modules");
         $api->{indent}++;
-        $api->unload_module($_, 1) foreach @dependents;
+        $api->unload_module($_, 1, 1) foreach @dependents;
         $api->{indent}--;
     }
     
@@ -464,7 +480,7 @@ sub unload_module {
     
     # unload submodules.
     foreach my $sub ($mod->submodules) {
-        $api->unload_module($sub, 1, 1);
+        $api->unload_module($sub, 1, 1, 1);
     }
 
     # unregister all managed event callbacks.
