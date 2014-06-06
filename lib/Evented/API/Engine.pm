@@ -9,13 +9,14 @@ use 5.010;
 
 use JSON ();
 use Scalar::Util qw(weaken blessed);
+use Module::Loaded qw(mark_as_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '3.0';
+our $VERSION = '3.1';
 
 # create a new API Engine.
 #
@@ -45,9 +46,10 @@ sub new {
     }, $class;
     
     # log subroutine.
-    if ($opts{log_sub} && ref $opts{log_sub} eq 'CODE') {
-        $api->on(log => $opts{log_sub});
-    }
+    $api->on(log => sub {
+        my $api = $_[0]->object;
+        $api->{log_sub}(@_) if $api->{log_sub};
+    });
     
     $api->_configure_api(%opts);
     return $api;
@@ -184,12 +186,17 @@ sub load_module {
     # FIXME: if these are loaded, then the module fails later, these remain loaded.
     $api->_load_module_requirements($info) or return;
         
-    # make the package a child of Evented::API::Module.
-    make_child($pkg, 'Evented::API::Module'); 
+    # make the package a child of Evented::API::Module
+    # unless 'nobless' is true.
+    my $new = 'Evented::API::Module';
+    unless ($info->{no_bless}) {
+        make_child($pkg, 'Evented::API::Module');
+        $new = $pkg;
+    }
     
     # create the module object.
     $info->{name}{last} = $mod_last_name;
-    my $mod = $pkg->new(%$info, dir => $mod_dir);
+    my $mod = $new->new(%$info, dir => $mod_dir);
     push @{ $api->{loaded} }, $mod;
     
     # add dependencies.
@@ -247,6 +254,8 @@ sub load_module {
     
     $api->{indent}--;
     $api->_log("[$mod_name] Loaded successfully ($$mod{version})");
+    mark_as_loaded($mod->{package});
+    
     return $mod;
 }
 

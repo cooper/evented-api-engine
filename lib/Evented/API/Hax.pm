@@ -6,7 +6,7 @@ use warnings;
 use strict;
 use 5.010;
 
-use Module::Loaded;
+use Module::Loaded qw(is_loaded mark_as_unloaded);
 
 our $VERSION = $Evented::API::Engine::VERSION;
 
