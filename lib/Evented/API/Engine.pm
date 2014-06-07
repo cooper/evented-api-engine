@@ -8,15 +8,15 @@ use strict;
 use 5.010;
 
 use JSON ();
-use Scalar::Util qw(weaken blessed);
-use Module::Loaded qw(mark_as_loaded);
+use Scalar::Util   qw(weaken blessed);
+use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '3.1';
+our $VERSION = '3.2';
 
 # create a new API Engine.
 #
@@ -39,6 +39,7 @@ sub new {
                                                                     #
     # create the API Engine.
     my $api = bless {
+        %opts,
         mod_inc  => $inc,
         features => [],
         loaded   => [],
@@ -225,12 +226,23 @@ sub load_module {
     my $return;
     $api->_log("[$mod_name] Evaluating main package");
     {
+    
+        # disable warnings on redefinition.
+        # note: this does not work as I want it to.
+        # it has to be inside eval to disable redefine warnings for some reason.
+        # see: http://perldoc.perl.org/perldiag.html
+        no warnings 'redefine';
+        
+        # capture other warnings.
         local $SIG{__WARN__} = sub {
             my $warn = shift;
             chomp $warn;
             $api->_log("[$mod_name] WARNING: $warn");
         };
+        
+        # do() the file.
         $return = do "$mod_dir/$mod_last_name.pm";
+        
     }
     
     # probably an error, or the module just didn't return $mod.
@@ -254,7 +266,7 @@ sub load_module {
     
     $api->{indent}--;
     $api->_log("[$mod_name] Loaded successfully ($$mod{version})");
-    mark_as_loaded($mod->{package});
+    mark_as_loaded($mod->{package}) unless is_loaded($mod->{package});
     
     return $mod;
 }
@@ -427,10 +439,15 @@ sub _get_module_info {
 # 
 # $unload_dependents = recursively unload all dependent modules as well
 # $force = if the module is a submodule, force it to unload by unloading parent also
-# $unloading_submodule = internal use only - means the parent is unloading a submodule
+#
+# For internal use only:
+#
+# $unloading_submodule = means the parent is unloading a submodule
+# $reloading = means the module is reloading
+# 
 #
 sub unload_module {
-    my ($api, $mod, $unload_dependents, $force, $unloading_submodule) = @_;
+    my ($api, $mod, $unload_dependents, $force, $unloading_submodule, $reloading) = @_;
     
     # not blessed, search for module.
     if (!blessed $mod) {
@@ -481,33 +498,68 @@ sub unload_module {
     if ($unload_dependents && @dependents) {
         $mod->_log("Unloading dependent modules");
         $api->{indent}++;
-        $api->unload_module($_, 1, 1) foreach @dependents;
+        $api->unload_module($_, 1, 1, undef, $reloading) foreach @dependents;
         $api->{indent}--;
     }
     
     # Safe point: from here, we can assume it will be unloaded for sure.
     
+    # if we're reloading, add to unloaded list.
+    push @{ $api->{r_unloaded} }, $mod->name if $reloading && !$mod->{parent};
+    
     # unload submodules.
-    foreach my $sub ($mod->submodules) {
-        $api->unload_module($sub, 1, 1, 1);
-    }
+    $api->unload_module($_, 1, 1, 1, $reloading) foreach $mod->submodules;
 
-    # unregister all managed event callbacks.
-    #$mod->_delete_managed_events();
+    # fire event for module unloaded (after void succeded)
     $mod->fire_event('unload');
 
     # remove from loaded.
     @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
 
-    # destroy the package.
+    # delete all events in case of cyclical references.
     $mod->delete_all_events();
+    
+    # prepare for destruction.
     $mod->{UNLOADED} = 1;
     bless $mod, 'Evented::API::Module';
     $mod->_log("Destroying package $$mod{package}");
-    package_unload($mod->{package});
+    
+    # if preserve_sym is enabled and this is during reload, don't delete symbols.
+    package_unload($mod->{package}) unless $mod->{preserve_sym} && $reloading;
     
     $api->_log("[$mod_name] Unloaded successfully");
     return $mod_name;
+}
+
+#########################
+### RELOADING MODULES ###
+#########################
+
+# reload a module.
+sub reload_module {
+    my ($api, $mod) = @_;
+    
+    # not blessed, search for module.
+    if (!blessed $mod) {
+        $mod = $api->get_module($mod);
+        if (!$mod) {
+            $api->_log("[$_[1]] Unload: not loaded");
+            return;
+        }
+    }
+    
+    # during the reload, any modules unloaded,
+    # including dependencies but excluding submodules,
+    # will end up in this array.
+    $api->{r_unloaded} = [];
+    
+    # unload the module.
+    $mod->{reloading} = 1;
+    $api->unload_module($mod, 1, 1, undef, 1) or return;
+    
+    # load all of the modules that were unloaded again.
+    $api->load_module($_) foreach @{ delete $api->{r_unloaded} };
+
 }
 
 ########################
