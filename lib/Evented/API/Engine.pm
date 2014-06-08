@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '3.2';
+our $VERSION = '3.3';
 
 # create a new API Engine.
 #
@@ -112,7 +112,7 @@ sub load_modules {
 
 # load a module.
 sub load_module {
-    my ($api, $mod_name, $dirs, $is_submodule) = @_;
+    my ($api, $mod_name, $dirs, $is_submodule, $reloading) = @_;
     return unless $mod_name;
     $api->_log("[$mod_name] Loading") unless $dirs;
     
@@ -139,7 +139,8 @@ sub load_module {
     
     # if there is no list of search directories, we have not attempted any loading.
     if (!$dirs) {
-        return $api->load_module($mod_name, [ @{ $api->{mod_inc} } ], $is_submodule); # to prevent modification
+        return $api->load_module($mod_name, [ @{ $api->{mod_inc} } ], $is_submodule, $reloading);
+        # to prevent modification
     }
     
     # otherwise, we are searching the next directory in the list.
@@ -254,6 +255,7 @@ sub load_module {
     }
     
     # fire module initialize. if the fire was stopped, give up.
+    $mod->{reloading} = $reloading;
     $api->_log("[$mod_name] Initializing");
     $api->{indent}++;
     if (my $stopper = $mod->fire_event('init')->stopper) {
@@ -349,6 +351,7 @@ sub _get_module_info {
     }
 
     # try reading comments.
+    # TODO: it would be nice if this also had the wikifier boolean syntax @something;
     open my $fh, '<', "$mod_dir/$mod_last_name.pm"
     or $api->_log("[$mod_name] Load FAILED: Could not open file: $!") and return;
     
@@ -537,29 +540,35 @@ sub unload_module {
 
 # reload a module.
 sub reload_module {
-    my ($api, $mod) = @_;
-    
-    # not blessed, search for module.
-    if (!blessed $mod) {
-        $mod = $api->get_module($mod);
-        if (!$mod) {
-            $api->_log("[$_[1]] Unload: not loaded");
-            return;
-        }
-    }
+    my ($api, @mods) = @_;
     
     # during the reload, any modules unloaded,
     # including dependencies but excluding submodules,
     # will end up in this array.
     $api->{r_unloaded} = [];
     
-    # unload the module.
-    $mod->{reloading} = 1;
-    $api->unload_module($mod, 1, 1, undef, 1) or return;
+    # unload each module provided.
+    foreach my $mod (@mods) {
+    
+        # not blessed, search for module.
+        if (!blessed $mod) {
+            $mod = $api->get_module($mod);
+            if (!$mod) {
+                $api->_log("[$_[1]] Unload: not loaded");
+                next;
+            }
+        }
+        
+        # unload the module.
+        $mod->{reloading} = 1;
+        $api->unload_module($mod, 1, 1, undef, 1) or return;
+        
+    }
     
     # load all of the modules that were unloaded again.
-    $api->load_module($_) foreach @{ delete $api->{r_unloaded} };
+    $api->load_module($_, undef, undef, 1) foreach @{ delete $api->{r_unloaded} };
 
+    return 1;
 }
 
 ########################
