@@ -16,7 +16,7 @@ use parent 'Evented::Object';
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '3.3';
+our $VERSION = '3.4';
 
 # create a new API Engine.
 #
@@ -260,8 +260,15 @@ sub load_module {
     $api->{indent}++;
     if (my $stopper = $mod->fire_event('init')->stopper) {
         $api->_log("[$mod_name] Load FAILED: Initialization canceled by '$stopper'");
+        
+        # remove the module; unload the package.
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
         package_unload($pkg);
+        
+        # fire unload so that bases can undo whatever was done up
+        # to the fail point of init.
+        $mod->fire_event('unload');
+        
         $api->{indent}--;
         return;
     }
@@ -565,8 +572,13 @@ sub reload_module {
         
     }
     
-    # load all of the modules that were unloaded again.
-    $api->load_module($_, undef, undef, 1) foreach @{ delete $api->{r_unloaded} };
+    # load all of the modules that were unloaded again
+    # (if they weren't already loaded, probably as dependencies).
+    my $unloaded = delete $api->{r_unloaded};
+    while (my $mod_name = shift @$unloaded) {
+        next if $api->module_loaded($mod_name);
+        $api->load_module($mod_name, undef, undef, 1);
+    }
 
     return 1;
 }
@@ -670,24 +682,6 @@ sub _log {
     }
     return 1;
 }
-#
-#sub _log {
-#    my ($api, $msg) = @_;
-#    my @msgs = split $/, $msg;
-#    $Text::Wrap::columns = 80;
-#    
-#    my $indent = '    ' x $api->{indent};
-#    my $first  = shift(@msgs);
-#    $api->fire_event(log => $_) foreach split "\n", wrap($indent, $indent.'    ... ', $first);
-#    
-#    my $i = $api->{indent} + 1;
-#    while (my $next = shift @msgs) {
-#        $indent = '    ' x $i;
-#        $next   = "->  $next";
-#        $api->fire_event(log => $_) foreach split "\n", wrap($indent, $indent.'    ... ', $next);
-#    }
-#    return 1;
-#}
 
 # read contents of file.
 sub _slurp {
