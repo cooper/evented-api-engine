@@ -11,7 +11,7 @@ use parent 'Evented::Object';
 
 use Scalar::Util qw(blessed weaken);
 
-our $VERSION = $Evented::API::Engine::VERSION;
+our $VERSION = Evented::API::Engine->VERSION;
 our $events  = $Evented::Object::events;
 
 sub new {

@@ -13,10 +13,11 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
+our $VERSION; BEGIN { $VERSION = '3.5' }
+
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
 
-our $VERSION = '3.4';
 
 # create a new API Engine.
 #
