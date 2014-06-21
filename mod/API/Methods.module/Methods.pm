@@ -68,8 +68,8 @@ sub add_method {
     export_code($class, $method, sub {
         my ($obj, @args) = @_;
         
-        # use Evented::Object's _fire_event() to use custom caller data.
-        my $fire = Evented::Object::_fire_event($obj, "method:$method", [caller 1], @args);
+        # fire with custom caller.
+        my $fire = $obj->prepare_event("method:$method" => @args)->fire(caller => [caller 1]);
         
         return $fire->last_return;
     });
