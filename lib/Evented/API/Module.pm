@@ -20,18 +20,7 @@ sub new {
     
     # TODO: check for required options.
     
-    # check if init and void return true values.
-    my $returnCheck = sub {
-        my $fire = shift;
-        my %returns = %{ $fire->{$Evented::Object::props}{return} };
-        foreach my $cb_name (keys %returns) {
-            next if $returns{$cb_name};
-            $fire->object->_log("'$cb_name' returned a false value");
-            $fire->stop;
-        }
-        return 1;
-    };
-    
+
     # default initialize handler.
     $mod->on(init => sub {
             my $init = shift->object->package->can('init') or return 1;
@@ -39,10 +28,6 @@ sub new {
         },
         name     => 'api.engine.initSubroutine',
         priority => 100
-    );
-    $mod->on(init => $returnCheck,
-        name     => 'api.engine.returnCheck',
-        priority => -1000
     );
     
     # default void handler.
@@ -53,11 +38,7 @@ sub new {
         name     => 'api.engine.voidSubroutine',
         priority => 100
     );
-    $mod->on(void => $returnCheck,
-        name     => 'api.engine.returnCheck',
-        priority => -1000
-    );
-    
+
     # registered callback.
     Evented::Object::add_class_monitor($mod->{package}, $mod);
     $mod->on('monitor:register_callback' => sub {
@@ -201,7 +182,7 @@ sub list_store_remove_matches {
         
         # it matches. add the remaining.
         if ($sub->($item)) {
-            last if $removed == $max;
+            last if $max && $removed == $max;
             next;
         }
         

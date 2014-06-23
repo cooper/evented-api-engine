@@ -30,7 +30,7 @@
 		BC2C928C18F61C84000A8517 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0510;
+				LastUpgradeCheck = 0600;
 			};
 			buildConfigurationList = BC2C928F18F61C84000A8517 /* Build configuration list for PBXProject "API Engine" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -51,6 +51,7 @@
 		BC2C929018F61C84000A8517 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ONLY_ACTIVE_ARCH = YES;
 			};
 			name = Debug;
 		};
