@@ -47,3 +47,4 @@ dev/
 *~
 *.old
 db/*.db
+mod/API/*/*.json
