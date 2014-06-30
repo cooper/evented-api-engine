@@ -22,7 +22,7 @@ sub new {
     
 
     # default initialize handler.
-    $mod->on(init => sub {
+    $mod->register_callback(init => sub {
             my $init = shift->object->package->can('init') or return 1;
             $init->(@_);
         },
@@ -31,7 +31,7 @@ sub new {
     );
     
     # default void handler.
-    $mod->on(void => sub {
+    $mod->register_callback(void => sub {
             my $void = shift->object->package->can('void') or return 1;
             $void->(@_);
         },
@@ -41,7 +41,7 @@ sub new {
 
     # registered callback.
     Evented::Object::add_class_monitor($mod->{package}, $mod);
-    $mod->on('monitor:register_callback' => sub {
+    $mod->register_callback('monitor:register_callback' => sub {
         my ($event, $eo, $event_name, $cb) = @_;
         my $mod = $event->object;
         
@@ -60,7 +60,7 @@ sub new {
     }, name => 'api.engine.eventTracker');
     
     # deleted all callbacks for an event.
-    $mod->on('monitor:delete_event' => sub {
+    $mod->register_callback('monitor:delete_event' => sub {
         my ($event, $eo, $event_name) = @_;
         my $mod = $event->object;
         $mod->_log("Event: $event_name (all callbacks) deleted from ".(ref($eo) || $eo));
@@ -74,7 +74,7 @@ sub new {
     });
     
     # deleted a specific callback.
-    $mod->on('monitor:delete_callback' => sub {
+    $mod->register_callback('monitor:delete_callback' => sub {
         my ($event, $eo, $event_name, $cb_name) = @_;
         my $mod = $event->object;
         $mod->_log("Event: $event_name ($cb_name) deleted from ".(ref($eo) || $eo));
@@ -89,7 +89,7 @@ sub new {
     });
     
     # unload handler for destroying events callbacks.
-    $mod->on(unload => sub {
+    $mod->register_callback(unload => sub {
         my $done; my $mod = shift->object;
         foreach my $e ($mod->list_store_items('managed_events')) {
             my ($eo, $event_name, $name) = @$e;

@@ -95,7 +95,7 @@ sub register_engine_method {
         %opts,
         code => $code
     };
-    $api->on("method:$name" => $code, with_evented_obj => 1);
+    $api->register_callback("method:$name" => $code, with_evented_obj => 1);
     
     add_method('Evented::API::Engine', $name);
     return 1;
@@ -115,7 +115,7 @@ sub register_module_method {
         %opts,
         code => $code
     };
-    $api->on("module.method:$name" => $code, with_evented_obj => 1);
+    $api->register_callback("module.method:$name" => $code, with_evented_obj => 1);
     
     add_method('Evented::API::Module', $name);
     return 1;

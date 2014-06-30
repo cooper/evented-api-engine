@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.61' }
+our $VERSION; BEGIN { $VERSION = '3.62' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -48,7 +48,7 @@ sub new {
     }, $class;
     
     # log subroutine.
-    $api->on(log => sub {
+    $api->register_callback(log => sub {
         my $api = $_[0]->object;
         $api->{log_sub}(@_) if $api->{log_sub};
     });
@@ -215,7 +215,7 @@ sub load_module {
     weaken($mod->{api} = $api);
     
     # export API Engine and module objects.
-    $mod->on(set_variables => sub {
+    $mod->register_callback(set_variables => sub {
         set_symbol($pkg, {
             '$api'      => $api,
             '$mod'      => shift->object,
@@ -549,6 +549,7 @@ sub unload_module {
 # reload a module.
 sub reload_module {
     my ($api, @mods) = @_;
+    my $count = 0;
     
     # during the reload, any modules unloaded,
     # including dependencies but excluding submodules,
@@ -578,10 +579,10 @@ sub reload_module {
     my $unloaded = delete $api->{r_unloaded};
     while (my $mod_name = shift @$unloaded) {
         next if $api->module_loaded($mod_name);
-        $api->load_module($mod_name, undef, undef, 1);
+        $count++ if $api->load_module($mod_name, undef, undef, 1);
     }
 
-    return 1;
+    return $count;
 }
 
 ########################
