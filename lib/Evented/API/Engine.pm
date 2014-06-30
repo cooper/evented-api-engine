@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.62' }
+our $VERSION; BEGIN { $VERSION = '3.63' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -259,7 +259,8 @@ sub load_module {
     $mod->{reloading} = $reloading;
     $api->_log("[$mod_name] Initializing");
     $api->{indent}++;
-    if (my $stopper = $mod->prepare('init')->fire('return_check')->stopper) {
+    if (my $stopper = (my $fire = $mod->prepare('init')->fire('return_check'))->stopper) {
+        $api->_log("[$mod_name] init stopped: ".$fire->stop);
         $api->_log("[$mod_name] Load FAILED: Initialization canceled by '$stopper'");
         
         # remove the module; unload the package.
@@ -268,6 +269,7 @@ sub load_module {
         
         # fire unload so that bases can undo whatever was done up
         # to the fail point of init.
+        bless $mod, 'Evented::API::Module';
         $mod->fire_event('unload');
         
         $api->{indent}--;
@@ -500,8 +502,9 @@ sub unload_module {
     
     # fire module void. if the fire was stopped, give up.
     $mod->_log('Voiding');
-    if (my $stopper = $mod->prepare('void')->fire('return_check')->stopper) {
-        $api->_log("Can't unload: canceled by '$stopper'");
+    if (my $stopper = (my $fire = $mod->prepare('void')->fire('return_check'))->stopper) {
+        $api->_log("[$mod_name] void stopped: ".$fire->stop);
+        $api->_log("[$mod_name] Can't unload: canceled by '$stopper'");
         return;
     }
     
