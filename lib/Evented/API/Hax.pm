@@ -47,6 +47,15 @@ sub get_symbol {
 # fetch a reference to a symbol.
 sub get_symbol_ref { get_symbol(@_, 1) }
 
+# fetch symbol only if exists.
+sub get_symbol_maybe {
+    my ($package, $variable, $ref) = @_;
+    my $v = substr $variable, 1;
+    no strict 'refs';
+    return unless exists ${ "${package}::" }{$v};
+    return &get_symbol;
+}
+
 # set a symbol in package's symbol table.
 sub set_symbol {
     my ($package, $variable, @values) = @_;

@@ -127,6 +127,11 @@ sub _log {
     $mod->api->_log("[$$mod{name}{full}] @_");
 }
 
+sub get_symbol {
+    my ($mod, $symbol) = @_;
+    return Evented::API::Hax::get_symbol_maybe($mod->{package}, $symbol);
+}
+
 ##################
 ### SUBMODULES ###
 ##################
@@ -217,60 +222,6 @@ sub list_store_items {
 # $eo->register_event(blah => sub {...});   does everything as normal w/ caller information
 # on unload...                              for each object, delete all from module package
 #
-
-## add an evented object to our managed list.
-#sub manage_object {
-#    my ($mod, $eo) = @_;
-#    return if !blessed $mod || !$mod->isa('Evented::Object');
-#    my $count = managing_object($eo);
-#    return $count if $count;
-#    push @{ $mod->{managed_objects} ||= [] }, $eo;
-#}
-#
-## returns true if an object is being managed by this module.
-#sub managing_object {
-#    my ($mod, $eo) = @_;
-#    my @objects = @{ $mod->{managed_objects} ||= [] };
-#    foreach my $_eo (@objects) {
-#        return scalar @objects if $_eo == $eo;
-#    }
-#    return;
-#}
-#
-## remove object from management, deleting all events.
-#sub release_object {
-#    my ($mod, $eo, $dont_remove) = @_;
-#    foreach my $event_name (keys %{ $eo->{$events}                    }) {
-#    foreach my $priority   (keys %{ $eo->{$events}{$event_name}       }) {
-#    foreach my $cb         (@{ $eo->{$events}{$event_name}{$priority} }) {
-#        next unless $cb->{caller}[0] eq $mod->package;
-#        my $obtype = blessed $eo;
-#        $mod->_log("Object release: $obtype.$event_name: $$cb{name}");
-#        $eo->delete_callback($event_name, $cb->{name});
-#    }}}
-#    
-#    # don't waste time removing this if we're removing them all.
-#    unless ($dont_remove) {
-#        my $objects = $mod->{managed_objects};
-#        @$objects   = grep { $_ != $eo } @$objects;
-#    }
-#    
-#}
-#
-## delete all the events managed by this module.
-#sub _delete_managed_events {
-#    my $mod = shift;
-#    my $objects = $mod->{managed_objects} or return;
-#    
-#    $mod->_log("Releasing managed evented objects");
-#    $mod->api->{indent}++;
-#    
-#    $mod->release_object($_, 1) foreach @$objects;
-#    
-#    @$objects = ();
-#    $mod->api->{indent}--;
-#}
-
 # 5/14/2014: REVISION:
 # 
 # $mod->manage_object() is annoying. I have come up with a better idea.
