@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.64' }
+our $VERSION; BEGIN { $VERSION = '3.65' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -403,8 +403,8 @@ sub _get_module_info {
         $api->_log("[$mod_name] Upgrade: $old_version -> $$info{version}");
     }
     
-    # write JSON information.
-    if ($info) {
+    # write JSON information if in developer mode.
+    if ($info && $api->{developer}) {
         my $info_json = $json->pretty->encode($info);
         
         open my $fh, '>', "$mod_dir/$mod_last_name.json" or
