@@ -410,7 +410,7 @@ sub _get_module_info {
     }
     
     # open
-    open my $fh, '>', "$mod_dir/$mod_last_name.json" or
+    open $fh, '>', "$mod_dir/$mod_last_name.json" or
         $api->_log("[$mod_name] JSON warning: Could not write module JSON information")
         and return;
     
