@@ -337,7 +337,7 @@ sub _get_module_info {
     my $info = $api->_slurp(undef, $mod_name, "$mod_dir/$mod_last_name.json");
 
     # no file - start with an empty hash.
-    unless (defined $info) {
+    if (!length $info) {
         $info = {};
     }
   
@@ -349,16 +349,15 @@ sub _get_module_info {
     
     # JSON was valid. now let's check the modified times.
     else {
-        
-        # not in developer mode. always use manifest.
-        return $info unless $api->{developer};
-        
         my $pkg_modified = (stat "$mod_dir/$mod_last_name.pm"  )[9];
         my $man_modified = (stat "$mod_dir/$mod_last_name.json")[9];
         
-        # the manifest file is more recent or equal to the package file.
+        # if not in developer mode, always use manifest.
+        #
+        # or the manifest file is more recent or equal to the package file.
         # the JSON info is therefore up-to-date
-        if ($man_modified >= $pkg_modified) {
+        #
+        if (!$api->{developer} || $man_modified >= $pkg_modified) {
             $info->{name} = { full => $info->{name} } if !ref $info->{name};
             return $info;
         }
