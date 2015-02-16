@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.65' }
+our $VERSION; BEGIN { $VERSION = '3.67' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -327,10 +327,11 @@ sub _load_module_requirements {
     return 1;
 }
 
+my $json = JSON->new->canonical(1);
+
 # fetch module information.
 sub _get_module_info {
     my ($api, $mod_name, $mod_dir, $mod_last_name) = @_;
-    my $json = JSON->new();
     
     # try reading module JSON file.
     my $info = $api->_slurp(undef, $mod_name, "$mod_dir/$mod_last_name.json");
