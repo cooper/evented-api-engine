@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.67' }
+our $VERSION; BEGIN { $VERSION = '3.70' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -327,7 +327,7 @@ sub _load_module_requirements {
     return 1;
 }
 
-my $json = JSON->new->canonical(1);
+my $json = JSON->new->canonical->pretty;
 
 # fetch module information.
 sub _get_module_info {
@@ -349,6 +349,10 @@ sub _get_module_info {
     
     # JSON was valid. now let's check the modified times.
     else {
+        
+        # not in developer mode. always use manifest.
+        return $info unless $api->{developer};
+        
         my $pkg_modified = (stat "$mod_dir/$mod_last_name.pm"  )[9];
         my $man_modified = (stat "$mod_dir/$mod_last_name.json")[9];
         
@@ -364,7 +368,8 @@ sub _get_module_info {
     # try reading comments.
     # TODO: it would be nice if this also had the wikifier boolean syntax @something;
     open my $fh, '<', "$mod_dir/$mod_last_name.pm"
-    or $api->_log("[$mod_name] Load FAILED: Could not open file: $!") and return;
+        or $api->_log("[$mod_name] Load FAILED: Could not open file: $!")
+        and return;
     
     # parse for variables.
     my $old_version = delete $info->{version} || 0;
@@ -404,18 +409,19 @@ sub _get_module_info {
         $api->_log("[$mod_name] Upgrade: $old_version -> $$info{version}");
     }
     
-    # write JSON information if in developer mode.
-    if ($info && $api->{developer}) {
-        my $info_json = $json->pretty->encode($info);
-        
-        open my $fh, '>', "$mod_dir/$mod_last_name.json" or
-         $api->_log("[$mod_name] JSON warning: Could not write module JSON information")
-         and return;
-        
-        $fh->write($info_json);
-        close $fh;
-        $api->_log("[$mod_name] JSON: Updated module information file");
-    }
+    # open
+    open my $fh, '>', "$mod_dir/$mod_last_name.json" or
+        $api->_log("[$mod_name] JSON warning: Could not write module JSON information")
+        and return;
+    
+    # encode
+    my $info_json = $json->encode($info);
+
+    # write
+    $fh->write($info_json);
+    close $fh;
+    
+    $api->_log("[$mod_name] JSON: Updated module information file");
     
     # check for required module info values.
     $info->{name} = { full => $info->{name} } if !ref $info->{name};
