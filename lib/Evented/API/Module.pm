@@ -154,6 +154,52 @@ sub load_submodule {
     return $ret;
 }
 
+sub unload_submodule {
+    my ($mod, $submod) = @_;
+    my $submod_name = $submod->name;
+    $mod->_log("Unloading submodule $submod_name");
+    
+    # unload
+    $mod->api->{indent}++;
+    
+        # ($api, $mod, $unload_dependents, $force, $unloading_submodule, $reloading)
+        #
+        # do not force, as that might unload the parent
+        # but do say we are unloading a submodule so it can be unloaded independently
+        #
+        $mod->api->unload_module($submod, 1, undef, 1, undef);
+    
+    $mod->api->{indent}--;
+    
+    # remove from submodules
+    if (my $submods = $mod->{submodules}) {
+        @$submods = grep { $_ != $submod } @$submods;
+    }
+    delete $submod->{parent};
+    
+    return 1;
+}
+
+sub add_companion_submodule {
+    my ($mod, $mod_name, $submod_name) = @_;
+    my $api = $mod->api;
+    
+    # if the companion is loaded, go ahead and load the submodule.
+    if ($api->module_loaded($mod_name)) {
+        $mod->_log("Companion $mod_name is loaded; loading submodule");
+        return $mod->load_submodule($submod_name);
+    }
+    
+    # otherwise, we need to postpone until it is loaded.
+    my $waits = $api->{companion_waits}{$mod_name} ||= [];
+    my $ref = [ $mod, $submod_name ]; weaken($ref->[0]);
+    push @$waits, $ref;
+    
+    # false return indicates not yet loaded.
+    return;
+    
+}
+
 ####################
 ### DATA STORAGE ###
 ####################

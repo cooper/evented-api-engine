@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.71' }
+our $VERSION; BEGIN { $VERSION = '3.8' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -277,8 +277,12 @@ sub load_module {
     }
     
     $api->{indent}--;
+    $mod->fire_event('load');
     $api->_log("[$mod_name] Loaded successfully ($$mod{version})");
     mark_as_loaded($mod->{package}) unless is_loaded($mod->{package});
+    
+    # load companions, if any.
+    $api->_load_companion_submodules($mod);
     
     return $mod;
 }
@@ -592,6 +596,49 @@ sub reload_module {
     }
 
     return $count;
+}
+
+############################
+### COMPANION SUBMODULES ###
+############################
+
+sub _load_companion_submodules {
+    my ($api, $mod) = @_;
+    my $waits = $api->{companion_waits}{ $mod->name } or return;
+    ref $waits eq 'ARRAY' or return;
+
+    my $status;
+    foreach (@$waits) {
+        my ($parent_mod, $submod_name) = @$_;
+        
+        # load it
+        $parent_mod->_log("Loading postponed companion submodule");
+        my $submod = $parent_mod->load_submodule($submod_name);
+        
+        # when this mod unloads, unload the submodule
+        if ($submod) {
+            $submod_name = $submod->name;
+            
+            # create weak references for the callback
+            weaken(my $weak_submod     = $submod);
+            weaken(my $weak_parent_mod = $parent_mod);
+            
+            # attach an unload callback
+            $mod->register_callback(unload => sub {
+                return if !$weak_parent_mod || !$weak_submod;
+                $weak_parent_mod->_log("Module with a companion submodule unloaded");
+                $weak_parent_mod->unload_submodule($weak_submod);
+            }, name => "companion.$submod_name");
+            
+            $status = 1;
+        }
+        else {
+            $parent_mod->_log('Companion submodule failed to load');
+        }
+    }
+    
+    delete $api->{companion_waits}{ $mod->name };
+    return $status;
 }
 
 ########################
