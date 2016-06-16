@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.8' }
+our $VERSION; BEGIN { $VERSION = '3.81' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -29,7 +29,7 @@ use Evented::API::Hax qw(set_symbol make_child package_unload);
 #
 sub new {
     my ($class, %opts) = @_;
-    
+
     # determine search directories.
     my $inc =                                                       #
         defined $opts{mod_inc} && ref $opts{mod_inc} eq 'ARRAY' ?   # list
@@ -46,13 +46,13 @@ sub new {
         loaded   => [],
         indent   => 0
     }, $class;
-    
+
     # log subroutine.
     $api->register_callback(log => sub {
         my $api = $_[0]->object;
         $api->{log_sub}(@_) if $api->{log_sub};
     });
-    
+
     $api->_configure_api(%opts);
     return $api;
 }
@@ -64,7 +64,7 @@ sub new {
 #
 sub _configure_api {
     my ($api, %opts) = @_;
-    
+
     # automatically add features.
     if (defined $opts{features}) {
         $api->add_feature($_) foreach @{
@@ -73,7 +73,7 @@ sub _configure_api {
             [ $opts{features} ]
         };
     }
-    
+
     # automatically load modules.
     if (defined $opts{modules}) {
         $api->load_modules_initially(@{
@@ -82,7 +82,7 @@ sub _configure_api {
             [ $opts{modules} ]
         });
     }
-    
+
     return 1;
 }
 
@@ -102,11 +102,11 @@ sub load_modules_initially {
 sub load_modules {
     my ($api, @mod_names) = @_;
     $api->{load_block} = { in_block => 1 };
-    
+
     # load each module from within a load block.
     my @results;
     push @results, $api->load_module($_) foreach @mod_names;
-    
+
     delete $api->{load_block};
     return grep { $_ } @results;
 }
@@ -116,7 +116,7 @@ sub load_module {
     my ($api, $mod_name, $dirs, $is_submodule, $reloading) = @_;
     return unless $mod_name;
     $api->_log("[$mod_name] Loading") unless $dirs;
-    
+
     # we are in a load block.
     # we are not in the middle of loading this particular module.
     if (!$is_submodule && $api->{load_block} && !$dirs) {
@@ -126,40 +126,40 @@ sub load_module {
             $api->_log("[$mod_name] Load FAILED: Skipping already attempted module");
             return;
         }
-    
+
         # add to attempted list.
         $api->{load_block}{$mod_name} = 1;
-        
+
     }
-    
+
     # check here if the module is loaded already.
     if (!$is_submodule && $api->module_loaded($mod_name)) {
         $api->_log("[$mod_name] Load FAILED: Module already loaded");
         return;
     }
-    
+
     # if there is no list of search directories, we have not attempted any loading.
     if (!$dirs) {
         return $api->load_module($mod_name, [ @{ $api->{mod_inc} } ], $is_submodule, $reloading);
         # to prevent modification
     }
-    
+
     # otherwise, we are searching the next directory in the list.
     my $search_dir = shift @$dirs;
-    
+
     # already checked every search directory.
     if (!defined $search_dir) {
         $api->_log("[$mod_name] Load FAILED: Module not found in any search directories");
         return;
     }
-    
+
     $api->_log("[$mod_name] Searching for module: $search_dir/");
-    
+
     # module does not exist in this search directory.
     # try the next search directory.
     my $mod_name_file  = $mod_name; $mod_name_file =~ s/::/\//g;
     my $mod_last_name  = pop @{ [ split '/', $mod_name_file ] };
-    
+
     # try to locate.
     # example (Some::Module):
     #    Some/Module.module
@@ -170,7 +170,7 @@ sub load_module {
     if    (-d $mod_dir_1) { $mod_dir = $mod_dir_1 }
     elsif (-d $mod_dir_2) { $mod_dir = $mod_dir_2 }
     else                  { return $api->load_module($mod_name, $dirs, $is_submodule) }
-    
+
     # we located the module directory.
     # now we must ensure all required files are present.
     $api->_log("[$mod_name] Located module: $mod_dir");
@@ -179,7 +179,7 @@ sub load_module {
         $api->_log("[$mod_name] Load FAILED: Mandatory file '$file' not present");
         return;
     }
-    
+
     # fetch module information.
     my $info = $api->_get_module_info($mod_name, $mod_dir, $mod_last_name);
     return if not defined $info;
@@ -188,7 +188,7 @@ sub load_module {
     # load required modules here.
     # FIXME: if these are loaded, then the module fails later, these remain loaded.
     $api->_load_module_requirements($info) or return;
-        
+
     # make the package a child of Evented::API::Module
     # unless 'nobless' is true.
     my $new = 'Evented::API::Module';
@@ -196,24 +196,24 @@ sub load_module {
         make_child($pkg, 'Evented::API::Module');
         $new = $pkg;
     }
-    
+
     # create the module object.
     $info->{name}{last} = $mod_last_name;
     my $mod = $new->new(%$info, dir => $mod_dir);
     push @{ $api->{loaded} }, $mod;
-    
+
     # add dependencies.
     $mod->{dependencies} = [
         map { $api->get_module($_) }
         @{ $info->{depends}{modules} || [] }
     ];
-    
+
     # make engine listener of module.
     $mod->add_listener($api, 'module');
-    
+
     # hold a weak reference to the API engine.
     weaken($mod->{api} = $api);
-    
+
     # export API Engine and module objects.
     $mod->register_callback(set_variables => sub {
         set_symbol($pkg, {
@@ -223,30 +223,30 @@ sub load_module {
         });
     }, name => 'api.engine.setVariables');
     $mod->fire_event('set_variables', $pkg);
-        
+
     # load the module.
     my $return;
     $api->_log("[$mod_name] Evaluating main package");
     {
-    
+
         # disable warnings on redefinition.
         # note: this does not work as I want it to.
         # it has to be inside eval to disable redefine warnings for some reason.
         # see: http://perldoc.perl.org/perldiag.html
         no warnings 'redefine';
-        
+
         # capture other warnings.
         local $SIG{__WARN__} = sub {
             my $warn = shift;
             chomp $warn;
             $api->_log("[$mod_name] WARNING: $warn");
         };
-        
+
         # do() the file.
         $return = do "$mod_dir/$mod_last_name.pm";
-        
+
     }
-    
+
     # probably an error, or the module just didn't return $mod.
     if (!$return || $return != $mod) {
         $api->_log("[$mod_name] Load FAILED: ".($@ || $! || 'Package did not return module object'));
@@ -254,7 +254,7 @@ sub load_module {
         package_unload($pkg);
         return;
     }
-    
+
     # fire module initialize. if the fire was stopped, give up.
     $mod->{reloading} = $reloading;
     $api->_log("[$mod_name] Initializing");
@@ -262,35 +262,35 @@ sub load_module {
     if (my $stopper = (my $fire = $mod->prepare('init')->fire('return_check'))->stopper) {
         $api->_log("[$mod_name] init stopped: ".$fire->stop);
         $api->_log("[$mod_name] Load FAILED: Initialization canceled by '$stopper'");
-        
+
         # remove the module; unload the package.
         @{ $api->{loaded} } = grep { $_ != $mod } @{ $api->{loaded} };
         package_unload($pkg);
-        
+
         # fire unload so that bases can undo whatever was done up
         # to the fail point of init.
         bless $mod, 'Evented::API::Module';
         $mod->fire_event('unload');
-        
+
         $api->{indent}--;
         return;
     }
-    
+
     $api->{indent}--;
     $mod->fire_event('load');
     $api->_log("[$mod_name] Loaded successfully ($$mod{version})");
     mark_as_loaded($mod->{package}) unless is_loaded($mod->{package});
-    
+
     # load companions, if any.
     $api->_load_companion_submodules($mod);
-    
+
     return $mod;
 }
 
 # loads the modules a module depends on.
 sub _load_module_requirements {
     my ($api, $info) = @_;
-    
+
     #
     # TODO: @depends.submodules: autoload submodules.
     #       different than @depends.modules in that
@@ -298,25 +298,25 @@ sub _load_module_requirements {
     #       at once, regardless of whether the submodules
     #       "depend" on the parent (all will automatically)
     #
-    
+
     # module does not depend on any other modules.
     my $mods = $info->{depends}{modules} or return 1;
 
     $info->{depends}{modules} = [$mods] if ref $mods ne 'ARRAY';
     foreach my $mod_name (@{ $info->{depends}{modules} }) {
-    
+
         # dependency already loaded.
         if ($api->module_loaded($mod_name)) {
             $api->_log("[$$info{name}{full}] Requirements: Dependency $mod_name already loaded");
             next;
         }
-        
+
         # prevent endless loops.
         if ($info->{name} eq $mod_name) {
             $api->_log("[$$info{name}{full}] Requirements: Module depends on itself");
             next;
         }
-        
+
         # load the dependency.
         $api->_log("[$$info{name}{full}] Requirements: Loading dependency $mod_name");
         $api->{indent}++;
@@ -336,26 +336,27 @@ my $json = JSON->new->canonical->pretty;
 # fetch module information.
 sub _get_module_info {
     my ($api, $mod_name, $mod_dir, $mod_last_name) = @_;
-    
+
     # try reading module JSON file.
-    my $info = $api->_slurp(undef, $mod_name, "$mod_dir/$mod_last_name.json");
+    my $full_file_name = "$mod_dir/$mod_last_name.json";
+    my $info = $api->_slurp(undef, $mod_name, $full_file_name);
 
     # no file - start with an empty hash.
     if (!length $info) {
         $info = {};
     }
-  
+
     # parse JSON.
     elsif (not $info = eval { $json->decode($info) }) {
-        $api->_log("[$mod_name] Load FAILED: JSON parsing of module info failed: $@");
+        $api->_log("[$mod_name] Load FAILED: JSON parsing of module info ($full_file_name) failed: $@");
         return;
     }
-    
+
     # JSON was valid. now let's check the modified times.
     else {
         my $pkg_modified = (stat "$mod_dir/$mod_last_name.pm"  )[9];
         my $man_modified = (stat "$mod_dir/$mod_last_name.json")[9];
-        
+
         # if not in developer mode, always use manifest.
         #
         # or the manifest file is more recent or equal to the package file.
@@ -365,7 +366,7 @@ sub _get_module_info {
             $info->{name} = { full => $info->{name} } if !ref $info->{name};
             return $info;
         }
-        
+
     }
 
     # try reading comments.
@@ -373,17 +374,17 @@ sub _get_module_info {
     open my $fh, '<', "$mod_dir/$mod_last_name.pm"
         or $api->_log("[$mod_name] Load FAILED: Could not open file: $!")
         and return;
-    
+
     # parse for variables.
     my $old_version = delete $info->{version} || 0;
     while (my $line = <$fh>) {
         next unless $line =~ m/^#\s*@([\.\w]+)\s*:(.+)$/;
         my ($var_name, $perl_value) = ($1, $2);
-        
+
         # find the correct hash level.
         my ($i, $current, @s) = (0, $info, split /\./, $var_name);
         foreach my $l (@s) {
-        
+
             # last level, should contain the value.
             if ($i == $#s) {
                 $current->{$l} = eval $perl_value;
@@ -393,16 +394,16 @@ sub _get_module_info {
                 }
                 last;
             }
-        
+
             # set the current level.
             $current = ( $current->{$l} ||= {} );
             $i++;
-            
+
         }
-        
+
     }
     close $fh;
-    
+
     # automatic versioning.
     if (!defined $info->{version}) {
         $info->{version} = $old_version + 0.1;
@@ -411,21 +412,21 @@ sub _get_module_info {
     elsif ($info->{version} != $old_version) {
         $api->_log("[$mod_name] Upgrade: $old_version -> $$info{version}");
     }
-    
+
     # open
     open $fh, '>', "$mod_dir/$mod_last_name.json" or
         $api->_log("[$mod_name] JSON warning: Could not write module JSON information")
         and return;
-    
+
     # encode
     my $info_json = $json->encode($info);
 
     # write
     $fh->write($info_json);
     close $fh;
-    
+
     $api->_log("[$mod_name] JSON: Updated module information file");
-    
+
     # check for required module info values.
     $info->{name} = { full => $info->{name} } if !ref $info->{name};
     foreach my $require (
@@ -442,14 +443,14 @@ sub _get_module_info {
             $h  = $h->{$next};
         }
         next if defined $h;
-        
+
         # not present.
         chop $n;
         $api->_log("[$mod_name] Load FAILED: Mandatory info '$n' not present");
         return;
-        
+
     }
-    
+
     return $info;
 }
 
@@ -459,7 +460,7 @@ sub _get_module_info {
 
 # unload a module.
 # returns the NAME of the module unloaded.
-# 
+#
 # $unload_dependents = recursively unload all dependent modules as well
 # $force = if the module is a submodule, force it to unload by unloading parent also
 #
@@ -467,11 +468,11 @@ sub _get_module_info {
 #
 # $unloading_submodule = means the parent is unloading a submodule
 # $reloading = means the module is reloading
-# 
+#
 #
 sub unload_module {
     my ($api, $mod, $unload_dependents, $force, $unloading_submodule, $reloading) = @_;
-    
+
     # not blessed, search for module.
     if (!blessed $mod) {
         $mod = $api->get_module($mod);
@@ -483,24 +484,24 @@ sub unload_module {
 
     # if this is a submodule, it cannot be unloaded this way.
     if ($mod->{parent} && !$unloading_submodule) {
-    
+
         # if we're forcing to unload, we just gotta unload the parent.
         # this module will be unloaded because of $unload_dependents, so return.
         if ($force) {
             $api->unload_module($mod->{parent}, 1, 1);
         }
-        
+
         # not forcing unload. give up.
         else {
             $mod->_log("Unload: submodule cannot be unloaded independently of parent");
         }
-        
+
         return;
     }
 
     my $mod_name = $mod->name;
     $mod->_log('Unloading');
-    
+
     # check if any loaded modules are dependent on this one.
     # if we're unloading recursively, do so after voiding.
     my @dependents = $mod->dependents;
@@ -509,7 +510,7 @@ sub unload_module {
         $mod->_log("Can't unload: Dependent modules: $dependents");
         return;
     }
-    
+
     # fire module void. if the fire was stopped, give up.
     $mod->_log('Voiding');
     if (my $stopper = (my $fire = $mod->prepare('void')->fire('return_check'))->stopper) {
@@ -517,7 +518,7 @@ sub unload_module {
         $api->_log("[$mod_name] Can't unload: canceled by '$stopper'");
         return;
     }
-    
+
     # if we're unloading recursively, do so now.
     if ($unload_dependents && @dependents) {
         $mod->_log("Unloading dependent modules");
@@ -525,12 +526,12 @@ sub unload_module {
         $api->unload_module($_, 1, 1, undef, $reloading) foreach @dependents;
         $api->{indent}--;
     }
-    
+
     # Safe point: from here, we can assume it will be unloaded for sure.
-    
+
     # if we're reloading, add to unloaded list.
     push @{ $api->{r_unloaded} }, $mod->name if $reloading && !$mod->{parent};
-    
+
     # unload submodules.
     $api->unload_module($_, 1, 1, 1, $reloading) foreach $mod->submodules;
 
@@ -542,15 +543,15 @@ sub unload_module {
 
     # delete all events in case of cyclical references.
     $mod->delete_all_events();
-    
+
     # prepare for destruction.
     $mod->{UNLOADED} = 1;
     bless $mod, 'Evented::API::Module';
     $mod->_log("Destroying package $$mod{package}");
-    
+
     # if preserve_sym is enabled and this is during reload, don't delete symbols.
     package_unload($mod->{package}) unless $mod->{preserve_sym} && $reloading;
-    
+
     $api->_log("[$mod_name] Unloaded successfully");
     return $mod_name;
 }
@@ -563,15 +564,15 @@ sub unload_module {
 sub reload_module {
     my ($api, @mods) = @_;
     my $count = 0;
-    
+
     # during the reload, any modules unloaded,
     # including dependencies but excluding submodules,
     # will end up in this array.
     $api->{r_unloaded} = [];
-    
+
     # unload each module provided.
     foreach my $mod (@mods) {
-    
+
         # not blessed, search for module.
         if (!blessed $mod) {
             $mod = $api->get_module($mod);
@@ -580,13 +581,13 @@ sub reload_module {
                 next;
             }
         }
-        
+
         # unload the module.
         $mod->{reloading} = 1;
         $api->unload_module($mod, 1, 1, undef, 1) or return;
-        
+
     }
-    
+
     # load all of the modules that were unloaded again
     # (if they weren't already loaded, probably as dependencies).
     my $unloaded = delete $api->{r_unloaded};
@@ -610,33 +611,33 @@ sub _load_companion_submodules {
     my $status;
     foreach (@$waits) {
         my ($parent_mod, $submod_name) = @$_;
-        
+
         # load it
         $parent_mod->_log("Loading postponed companion submodule");
         my $submod = $parent_mod->load_submodule($submod_name);
-        
+
         # when this mod unloads, unload the submodule
         if ($submod) {
             $submod_name = $submod->name;
-            
+
             # create weak references for the callback
             weaken(my $weak_submod     = $submod);
             weaken(my $weak_parent_mod = $parent_mod);
-            
+
             # attach an unload callback
             $mod->register_callback(unload => sub {
                 return if !$weak_parent_mod || !$weak_submod;
                 $weak_parent_mod->_log("Module with a companion submodule unloaded");
                 $weak_parent_mod->unload_submodule($weak_submod);
             }, name => "companion.$submod_name");
-            
+
             $status = 1;
         }
         else {
             $parent_mod->_log('Companion submodule failed to load');
         }
     }
-    
+
     delete $api->{companion_waits}{ $mod->name };
     return $status;
 }
@@ -744,7 +745,7 @@ sub _log {
 # read contents of file.
 sub _slurp {
     my ($api, $log_type, $mod_name, $file_name) = @_;
-    
+
     # open file.
     my $fh;
     if (!open $fh, '<', $file_name) {
@@ -752,12 +753,12 @@ sub _slurp {
         $api->_log("slurp: $file_name could not be opened for reading");
         return;
     }
-    
+
     # read and close file.
     local $/ = undef;
     my $data = <$fh>;
     close $fh;
-    
+
     return $data;
 }
 
