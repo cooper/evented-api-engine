@@ -7,13 +7,13 @@ use warnings;
 use strict;
 use 5.010;
 
-use JSON ();
+use JSON::XS ();
 use Scalar::Util   qw(weaken blessed);
 use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.83' }
+our $VERSION; BEGIN { $VERSION = '3.84' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -331,7 +331,7 @@ sub _load_module_requirements {
     return 1;
 }
 
-my $json = JSON->new->canonical->pretty;
+my $json = JSON::XS->new->canonical->pretty;
 
 # fetch module information.
 sub _get_module_info {
@@ -347,7 +347,7 @@ sub _get_module_info {
     }
 
     # parse JSON.
-    elsif (!defined($info = eval { $json->decode($info) })) {
+    elsif (not $info = eval { $json->decode($info) }) {
         $api->_log("[$mod_name] Load FAILED: JSON parsing of module info ($path) failed: $@");
         $api->_log("[$mod_name] JSON text: $slurp");
         return;
