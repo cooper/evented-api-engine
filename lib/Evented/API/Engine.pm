@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.82' }
+our $VERSION; BEGIN { $VERSION = '3.83' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -347,7 +347,7 @@ sub _get_module_info {
     }
 
     # parse JSON.
-    elsif (not $info = eval { $json->decode($info) }) {
+    elsif (!defined($info = eval { $json->decode($info) })) {
         $api->_log("[$mod_name] Load FAILED: JSON parsing of module info ($path) failed: $@");
         $api->_log("[$mod_name] JSON text: $slurp");
         return;
