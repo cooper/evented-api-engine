@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.91' }
+our $VERSION; BEGIN { $VERSION = '3.92' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -433,6 +433,7 @@ sub _get_module_info {
 
     }
 
+    $info->{name} = { full => $info->{name} } if !ref $info->{name};
     return $info;
 }
 
