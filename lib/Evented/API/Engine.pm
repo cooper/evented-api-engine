@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.93' }
+our $VERSION; BEGIN { $VERSION = '3.94' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -343,6 +343,7 @@ sub _get_module_info {
 
     # no file - start with an empty hash.
     if (!length $info) {
+        $api->_log("[$mod_name] No JSON manifest found at $path");
         $info = {};
     }
 
@@ -435,6 +436,7 @@ sub _get_module_info {
 
     }
 
+    $info->{version} //= $old_version;
     $info->{name} = { full => $info->{name} } if !ref $info->{name};
     return $info;
 }
