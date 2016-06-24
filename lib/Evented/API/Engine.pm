@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.92' }
+our $VERSION; BEGIN { $VERSION = '3.93' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -369,6 +369,8 @@ sub _get_module_info {
         }
 
     }
+
+    $api->_log("[$mod_name] Scanning for metadata");
 
     # try reading comments.
     # TODO: it would be nice if this also had the wikifier boolean syntax @something;
