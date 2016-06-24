@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.9' }
+our $VERSION; BEGIN { $VERSION = '3.91' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -430,31 +430,6 @@ sub _get_module_info {
         close $fh;
 
         $api->_log("[$mod_name] JSON: Updated module information file");
-
-    }
-
-    # check for required module info values.
-    # FIXME: these checks are skipped if using manifest.
-    $info->{name} = { full => $info->{name} } if !ref $info->{name};
-    foreach my $require (
-        #[ 'name',   'short'   ],
-        #[ 'name',   'full'    ],
-        #[ 'name',   'package' ],
-        [ 'name'        ],
-        [ 'package'     ],
-        [ 'version'     ]
-    ) {
-        my ($h, $n) = ($info, '');
-        while (my $next = shift @$require) {
-            $n .= "$h.";
-            $h  = $h->{$next};
-        }
-        next if defined $h;
-
-        # not present.
-        chop $n;
-        $api->_log("[$mod_name] Load FAILED: Mandatory info '$n' not present");
-        return;
 
     }
 
