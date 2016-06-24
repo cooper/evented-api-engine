@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.84' }
+our $VERSION; BEGIN { $VERSION = '3.9' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -405,30 +405,36 @@ sub _get_module_info {
     }
     close $fh;
 
-    # automatic versioning.
-    if (!defined $info->{version}) {
-        $info->{version} = $old_version + 0.1;
-        $api->_log("[$mod_name] Upgrade: $old_version -> $$info{version} (automatic)");
+    # if in developer mode, write the changes.
+    if ($api->{developer}) {
+
+        # automatic versioning.
+        if (!defined $info->{version}) {
+            $info->{version} = $old_version + 0.1;
+            $api->_log("[$mod_name] Upgrade: $old_version -> $$info{version} (automatic)");
+        }
+        elsif ($info->{version} != $old_version) {
+            $api->_log("[$mod_name] Upgrade: $old_version -> $$info{version}");
+        }
+
+        # open
+        open $fh, '>', "$mod_dir/$mod_last_name.json" or
+            $api->_log("[$mod_name] JSON warning: Could not write module JSON information")
+            and return;
+
+        # encode
+        my $info_json = $json->encode($info);
+
+        # write
+        $fh->write($info_json);
+        close $fh;
+
+        $api->_log("[$mod_name] JSON: Updated module information file");
+
     }
-    elsif ($info->{version} != $old_version) {
-        $api->_log("[$mod_name] Upgrade: $old_version -> $$info{version}");
-    }
-
-    # open
-    open $fh, '>', "$mod_dir/$mod_last_name.json" or
-        $api->_log("[$mod_name] JSON warning: Could not write module JSON information")
-        and return;
-
-    # encode
-    my $info_json = $json->encode($info);
-
-    # write
-    $fh->write($info_json);
-    close $fh;
-
-    $api->_log("[$mod_name] JSON: Updated module information file");
 
     # check for required module info values.
+    # FIXME: these checks are skipped if using manifest.
     $info->{name} = { full => $info->{name} } if !ref $info->{name};
     foreach my $require (
         #[ 'name',   'short'   ],
