@@ -2,7 +2,7 @@
 # Hax provides low-level haxing tools used by the API Engine.
 package Evented::API::Hax;
 
-use warnings;
+use warnings; no warnings 'experimental::smartmatch';
 use strict;
 use 5.010;
 
@@ -25,14 +25,14 @@ sub import {
 # fetch a symbol from package's symbol table.
 sub get_symbol {
     my ($package, $variable, $ref) = @_;
-    
+
     # must start with a sigil.
     return if $variable !~ m/^([@\*%\$])(\w+)$/;
     my ($sigil, $var_name) = ($1, $2);
-    
+
     my $symbol = $package.q(::).$var_name;
     no strict 'refs';
- 
+
     # find the symbol.
     given ($sigil) {
         when ('$') { return $ref ? \$$symbol : $$symbol }
@@ -40,7 +40,7 @@ sub get_symbol {
         when ('*') { return $ref ? \*$symbol : *$symbol }
         when ('%') { return $ref ? \&$symbol : %$symbol }
     }
-    
+
     return;
 }
 
@@ -59,20 +59,20 @@ sub get_symbol_maybe {
 # set a symbol in package's symbol table.
 sub set_symbol {
     my ($package, $variable, @values) = @_;
-    
+
     # several symbols.
     if (ref $variable && ref $variable eq 'HASH') {
         set_symbol($package, $_, $variable->{$_}) foreach keys %$variable;
         return;
     }
-    
+
     # must start with a sigil.
     return if $variable !~ m/^([@\*%\$])(\w+)$/;
     my ($sigil, $var_name) = ($1, $2);
-    
+
     my $symbol = $package.q(::).$var_name;
     no strict 'refs';
- 
+
     # find the symbol.
     given ($sigil) {
         when ('$') { $$symbol = $values[0] }
@@ -80,7 +80,7 @@ sub set_symbol {
         when ('*') { *$symbol = $values[0] }
         when ('%') { %$symbol = @values    }
     }
-    
+
     return;
 }
 
@@ -105,21 +105,21 @@ sub delete_code {
 sub make_child {
     my ($package, $make_parent, $at_end) = @_;
     my $isa = get_symbol_ref($package, '@ISA');
-    
+
     # package already inherits directly.
     return 1 if $make_parent ~~ @$isa;
-    
+
     # check each class in ISA for inheritance.
     foreach my $parent (@$isa) {
         return 1 if $parent->isa($make_parent);
     }
-    
+
     # add to ISA.
     unshift @$isa, $make_parent unless $at_end;
     push    @$isa, $make_parent if     $at_end;
-    
+
     return 1;
-    
+
 }
 
 # unload a package and delete its symbols.
@@ -128,13 +128,13 @@ sub package_unload {
     my $class = shift;
     no strict 'refs';
     @{ $class . '::ISA' } = ();
-    
+
     my $symtab = $class.'::';
     for my $symbol (keys %$symtab) {
         next if $symbol =~ /\A[^:]+::\z/;
         delete $symtab->{$symbol};
     }
-    
+
     mark_as_unloaded($class) if is_loaded($class);
     return 1;
 }
