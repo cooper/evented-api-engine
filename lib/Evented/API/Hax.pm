@@ -2,7 +2,7 @@
 # Hax provides low-level haxing tools used by the API Engine.
 package Evented::API::Hax;
 
-use warnings; no warnings 'experimental::smartmatch';
+use warnings;
 use strict;
 use 5.010;
 
