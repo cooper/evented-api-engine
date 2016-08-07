@@ -190,7 +190,7 @@ sub add_companion_submodule {
     push @$waits, $ref;
 
     # if it is already loaded, go ahead and load the submodule.
-    if (my $loaded = $api->module_loaded($mod_name)) {
+    if (my $loaded = $api->get_module($mod_name)) {
         $api->_load_companion_submodules($loaded);
     }
 
