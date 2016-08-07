@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.97' }
+our $VERSION; BEGIN { $VERSION = '3.98' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -500,10 +500,18 @@ sub unload_module {
 
     # fire module void. if the fire was stopped, give up.
     $mod->_log('Voiding');
-    if (my $stopper = (my $fire = $mod->prepare('void')->fire('return_check'))->stopper) {
-        $api->_log("[$mod_name] void stopped: ".$fire->stop);
+    my $void_fire = $mod->prepare('void')->fire('return_check');
+    my $stopper   = $void_fire->stopper;
+    if (!$unloading_submodule && $stopper) {
+        $api->_log("[$mod_name] void stopped: ".$void_fire->stop);
         $api->_log("[$mod_name] Can't unload: canceled by '$stopper'");
         return;
+    }
+    elsif ($stopper) {
+        $api->_log(
+            "[$mod_name] Warning! This submodule has requested to remain ".
+            'loaded, but submodules MUST be unloaded with their parent'
+        );
     }
 
     # if we're unloading recursively, do so now.
