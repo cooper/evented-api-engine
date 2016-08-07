@@ -13,7 +13,7 @@ use Module::Loaded qw(mark_as_loaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION; BEGIN { $VERSION = '3.95' }
+our $VERSION; BEGIN { $VERSION = '3.96' }
 
 use Evented::API::Module;
 use Evented::API::Hax qw(set_symbol make_child package_unload);
@@ -600,7 +600,7 @@ sub _load_companion_submodules {
         my ($parent_mod, $submod_name) = @$_;
 
         # load it
-        $parent_mod->_log("Loading postponed companion submodule");
+        $parent_mod->_log("Loading companion submodule");
         my $submod = $parent_mod->load_submodule($submod_name);
 
         # when this mod unloads, unload the submodule

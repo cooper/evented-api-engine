@@ -17,7 +17,7 @@ our $events  = $Evented::Object::events;
 sub new {
     my ($class, %opts) = @_;
     my $mod = bless \%opts, $class;
-    
+
     # TODO: check for required options.
 
 
@@ -184,16 +184,15 @@ sub add_companion_submodule {
     my ($mod, $mod_name, $submod_name) = @_;
     my $api = $mod->api;
 
-    # if the companion is loaded, go ahead and load the submodule.
-    if ($api->module_loaded($mod_name)) {
-        $mod->_log("Companion $mod_name is loaded; loading submodule");
-        return $mod->load_submodule($submod_name);
-    }
-
-    # otherwise, we need to postpone until it is loaded.
+    # postpone load until the companion is loaded.
     my $waits = $api->{companion_waits}{$mod_name} ||= [];
     my $ref = [ $mod, $submod_name ]; weaken($ref->[0]);
     push @$waits, $ref;
+
+    # if it is already loaded, go ahead and load the submodule.
+    if (my $loaded = $api->module_loaded($mod_name)) {
+        $api->_load_companion_submodules($loaded);
+    }
 
     # false return indicates not yet loaded.
     return;
