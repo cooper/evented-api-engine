@@ -77,8 +77,7 @@ sub mod_default_set_variables {
 }
 
 sub mod_event_registered {
-    my ($event, $eo, $event_name, $cb) = @_;
-    my $mod = $event->object;
+    my ($mod, $fire, $eo, $event_name, $cb) = @_;
     my $ref = ref $eo;
 
     # permanent - ignore.
@@ -96,8 +95,7 @@ sub mod_event_registered {
 }
 
 sub mod_event_deleted {
-    my ($event, $eo, $event_name) = @_;
-    my $mod = $event->object;
+    my ($mod, $fire, $eo, $event_name) = @_;
     my $ref = ref $eo;
     $mod->L("Event: $event_name (all callbacks) deleted from $ref");
     $mod->list_store_remove_matches('managed_events', sub {
@@ -110,8 +108,7 @@ sub mod_event_deleted {
 }
 
 sub mod_callback_deleted {
-    my ($event, $eo, $event_name, $cb_name) = @_;
-    my $mod = $event->object;
+    my ($mod, $fire, $eo, $event_name, $cb_name) = @_;
     my $ref = ref $eo;
     $mod->L("Event: $event_name ($cb_name) deleted from $ref");
     $mod->list_store_remove_matches('managed_events', sub {
