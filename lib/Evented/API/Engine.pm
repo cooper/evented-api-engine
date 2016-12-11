@@ -585,8 +585,11 @@ sub unload_module {
     # Safe point: from here, we can assume it will be unloaded for sure.
 
     # unload submodules and companions.
-    my @submodules = ($mod->submodules, $mod->dependent_companions);
-    $api->unload_module($_, 1, 1, 1, $reloading) for @submodules;
+    # ($unload_dependents, $force, $unloading_submodule, $reloading)
+    $api->unload_module($_, 1, 1, 1, $reloading)
+        for $mod->submodules;
+    $api->unload_module($_, 1, undef, 1, $reloading)
+        for $mod->dependent_companions;
 
     # if we're reloading, add to unloaded list.
     push @{ $api->{r_unloaded} }, $mod->name
