@@ -586,10 +586,13 @@ sub unload_module {
 
     # unload submodules and companions.
     # ($unload_dependents, $force, $unloading_submodule, $reloading)
-    $api->unload_module($_, 1, 1, 1, $reloading)
-        for $mod->submodules;
-    $api->unload_module($_, 1, undef, 1, $reloading)
-        for $mod->dependent_companions;
+    my @submodules = $mod->submodules;
+    my @companions = $mod->dependent_companions;
+    $mod->Log("Unloading submodules") if @submodules || @companions;
+    $api->{indent}++;
+        $api->unload_module($_, 1, 1,     1, $reloading) for @submodules;
+        $api->unload_module($_, 1, undef, 1, $reloading) for @companions;
+    $api->{indent}--;
 
     # if we're reloading, add to unloaded list.
     push @{ $api->{r_unloaded} }, $mod->name
