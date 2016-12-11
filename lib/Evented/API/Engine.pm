@@ -609,7 +609,7 @@ sub unload_module {
 
     # clear the symbol table of this module.
     # if preserve_sym is set and this is during reload, don't delete symbols.
-    package_unload($mod->{package})
+    _package_unload($mod->{package})
         unless $mod->{preserve_sym} && $reloading;
 
     $api->L($mod_name, 'Unloaded successfully');
