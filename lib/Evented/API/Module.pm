@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Mitchell Cooper
+# Copyright (c) 2016, Mitchell Cooper
 # Module represents an API module and provides an interface for managing one.
 package Evented::API::Module;
 
@@ -10,110 +10,15 @@ use Evented::Object;
 use parent 'Evented::Object';
 
 use Scalar::Util qw(blessed weaken);
+use List::Util qw(first);
 
-our $VERSION = Evented::API::Engine->VERSION;
+our $VERSION = '4.00';
 our $events  = $Evented::Object::events;
 
 sub new {
     my ($class, %opts) = @_;
     my $mod = bless \%opts, $class;
-
-    # TODO: check for required options.
-
-
-    # default initialize handler.
-    $mod->register_callback(init => sub {
-            my $init = shift->object->package->can('init') or return 1;
-            $init->(@_);
-        },
-        name     => 'api.engine.initSubroutine',
-        priority => 100
-    );
-
-    # default void handler.
-    $mod->register_callback(void => sub {
-            my $void = shift->object->package->can('void') or return 1;
-            $void->(@_);
-        },
-        name     => 'api.engine.voidSubroutine',
-        priority => 100
-    );
-
-    # registered callback.
-    Evented::Object::add_class_monitor($mod->{package}, $mod);
-    $mod->register_callback('monitor:register_callback' => sub {
-        my ($event, $eo, $event_name, $cb) = @_;
-        my $mod = $event->object;
-
-        # permanent - ignore.
-        if ($cb->{permanent}) {
-            $mod->_log("Permanent event: $event_name ($$cb{name}) registered to ".(ref($eo) || $eo));
-            return;
-        }
-
-        # hold weak reference.
-        my $e = [ $eo, $event_name, $cb->{name} ];
-        weaken($e->[0]);
-        $mod->list_store_add('managed_events', $e);
-        $mod->_log("Event: $event_name ($$cb{name}) registered to ".(ref($eo) || $eo));
-
-    }, name => 'api.engine.eventTracker');
-
-    # deleted all callbacks for an event.
-    $mod->register_callback('monitor:delete_event' => sub {
-        my ($event, $eo, $event_name) = @_;
-        my $mod = $event->object;
-        $mod->_log("Event: $event_name (all callbacks) deleted from ".(ref($eo) || $eo));
-        $mod->list_store_remove_matches('managed_events', sub {
-            my $e = shift;
-            return 1 if not defined $e->[0]; # disposed
-            return unless $eo         == $e->[0];
-            return unless $event_name eq $e->[1];
-            return 1;
-        });
-    });
-
-    # deleted a specific callback.
-    $mod->register_callback('monitor:delete_callback' => sub {
-        my ($event, $eo, $event_name, $cb_name) = @_;
-        my $mod = $event->object;
-        $mod->_log("Event: $event_name ($cb_name) deleted from ".(ref($eo) || $eo));
-        $mod->list_store_remove_matches('managed_events', sub {
-            my $e = shift;
-            return 1 if not defined $e->[0]; # disposed
-            return unless $eo         == $e->[0];
-            return unless $event_name eq $e->[1];
-            return unless $cb_name    eq $e->[2];
-            return 1;
-        }, 1);
-    });
-
-    # unload handler for destroying events callbacks.
-    $mod->register_callback(unload => sub {
-        my $done; my $mod = shift->object;
-        foreach my $e ($mod->list_store_items('managed_events')) {
-            my ($eo, $event_name, $name) = @$e;
-
-            # this is a weak reference --
-            # if undefined, it was disposed of.
-            return unless $eo;
-
-            # first one.
-            if (!$done) {
-                $mod->_log('Destroying managed event callbacks');
-                $mod->api->{indent}++;
-                $done = 1;
-            }
-
-            # delete this callback.
-            $eo->delete_callback($event_name, $name);
-            $mod->_log("Event: $event_name ($name) deleted from ".(ref($eo) || $eo));
-
-        }
-        $mod->api->{indent}-- if $done;
-        return 1;
-    }, name => 'api.engine.deleteEvents');
-
+    Evented::API::Events::add_events($mod);
     return $mod;
 }
 
@@ -122,14 +27,75 @@ sub package    { shift->{package}               }
 sub api        { shift->{api}                   }
 sub submodules { @{ shift->{submodules} || [] } }
 
-sub _log {
+sub L {
     my $mod = shift;
-    $mod->api->_log("[$$mod{name}{full}] @_");
+    $mod->api->L($mod->name, "@_");
 }
+
+*_log = *L;
 
 sub get_symbol {
     my ($mod, $symbol) = @_;
-    return Evented::API::Hax::get_symbol_maybe($mod->{package}, $symbol);
+    return Evented::Object::Hax::get_symbol($mod->{package}, $symbol);
+}
+
+sub _do_init {
+    my $mod = shift;
+    my $api = $mod->api;
+
+    # fire module initialize.
+    $api->L($mod->name, 'Initializing');
+    $api->{indent}++;
+        my $init_fire = $mod->prepare('init')->fire('return_check');
+    $api->{indent}--;
+
+    # init was stopped. cancel the load.
+    if (my $stopper = $init_fire->stopper) {
+        $mod->L('init stopped: '.$init_fire->stop);
+        $mod->L("Load FAILED: Initialization canceled by '$stopper'");
+
+        $api->_abort_module_load($mod);
+
+        # fire unload so that bases can undo whatever was done up
+        # to the fail point of init.
+        bless $mod, 'Evented::API::Module';
+        $mod->fire('unload');
+
+        return;
+    }
+
+    # init was successful
+    return 1;
+}
+
+sub _do_void {
+    my ($mod, $unloading_submodule) = @_;
+    my $api = $mod->api;
+
+    # fire module void.
+    # consider: should this have return_check like init?
+    $mod->L('Voiding');
+    my $void_fire = $mod->fire('void');
+
+    # init was stopped. cancel the unload.
+    my $stopper = $void_fire->stopper;
+    if (!$unloading_submodule && $stopper) {
+        $mod->L("void stopped: ".$void_fire->stop);
+        $mod->L("Can't unload: canceled by '$stopper'");
+        return;
+    }
+
+    # if this is a submodule, it isn't allowed to refuse to unload.
+    elsif ($stopper) {
+        $mod->L(
+            "Warning! This submodule has requested to remain ".
+            'loaded, but submodules MUST be unloaded with their parent'
+        );
+    }
+
+    # void was successful
+    return 1;
+
 }
 
 ##################
@@ -138,9 +104,12 @@ sub get_symbol {
 
 sub load_submodule {
     my ($mod, $mod_name) = @_;
-    $mod->_log("Loading submodule $mod_name");
+    $mod->L("Loading submodule $mod_name");
+
+    # call ->load_module with the search dir set to the
+    # parent module's main directory.
     $mod->api->{indent}++;
-    my $ret = $mod->api->load_module($mod_name, [ $mod->{dir} ], 1);
+        my $ret = $mod->api->load_module($mod_name, [ $mod->{dir} ], 1);
     $mod->api->{indent}--;
 
     # add weakly to submodules list. hold weak reference to parent module.
@@ -157,15 +126,16 @@ sub load_submodule {
 sub unload_submodule {
     my ($mod, $submod) = @_;
     my $submod_name = $submod->name;
-    $mod->_log("Unloading submodule $submod_name");
+    $mod->L("Unloading submodule $submod_name");
 
     # unload
     $mod->api->{indent}++;
 
-        # ($api, $mod, $unload_dependents, $force, $unloading_submodule, $reloading)
+        # ($mod, $unload_dependents, $force, $unloading_submodule, $reloading)
         #
         # do not force, as that might unload the parent
-        # but do say we are unloading a submodule so it can be unloaded independently
+        # but do say we are unloading a submodule so it can be unloaded
+        # independently (which usually wouldn't be allowed)
         #
         $mod->api->unload_module($submod, 1, undef, 1, undef);
 
@@ -182,21 +152,7 @@ sub unload_submodule {
 
 sub add_companion_submodule {
     my ($mod, $mod_name, $submod_name) = @_;
-    my $api = $mod->api;
-
-    # postpone load until the companion is loaded.
-    my $waits = $api->{companion_waits}{$mod_name} ||= [];
-    my $ref = [ $mod, $submod_name ]; weaken($ref->[0]);
-    push @$waits, $ref;
-
-    # if it is already loaded, go ahead and load the submodule.
-    if (my $loaded = $api->get_module($mod_name)) {
-        $api->_load_companion_submodules($loaded);
-    }
-
-    # false return indicates not yet loaded.
-    return;
-
+    $mod->api->_add_companion_submodule_wait($mod, $mod_name, $submod_name);
 }
 
 ####################
@@ -256,24 +212,6 @@ sub list_store_items {
     return @{ $mod->{store}{$key} || [] };
 }
 
-#######################
-### MANAGED OBJECTS ###
-#######################
-#
-# 4/7/2014: Here's how I plan for this to work:
-#
-# my $eo = some_arbitrary_actual_evented_object();
-# $mod->manage_object($eo);                 adds weak mod to @{ $mod->{managed_objects} }
-# $eo->register_event(blah => sub {...});   does everything as normal w/ caller information
-# on unload...                              for each object, delete all from module package
-#
-# 5/14/2014: REVISION:
-#
-# $mod->manage_object() is annoying. I have come up with a better idea.
-# I designed Evented::Object class monitors for this purpose. See documentation.
-# Briefly, it allows API engine to track the events added from the module package.
-#
-
 ####################
 ### DEPENDENCIES ###
 ####################
@@ -283,16 +221,13 @@ sub dependencies {
     return @{ shift->{dependencies} || [] };
 }
 
-# returns the module that depend on this.
+# returns the modules that depend on this.
 sub dependents {
     my $mod = shift;
     my @mods;
     foreach my $m (@{ $mod->api->{loaded} }) {
-        foreach my $dep ($m->dependencies) {
-            next unless $dep == $mod;
-            push @mods, $m;
-            last;
-        }
+        next unless first { $_ == $mod } $m->dependencies;
+        push @mods, $m;
     }
     return @mods;
 }

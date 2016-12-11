@@ -24,7 +24,7 @@ sub init {
     export_code('Evented::API::Module', 'register_module_method', \&register_module_method);
     
     # register events.
-    $api->register_event('module.unload' => \&unload_module,
+    $api->on('module.unload' => \&unload_module,
         name => 'api.engine.methods',
         with_evented_obj => 1
     );
@@ -95,7 +95,7 @@ sub register_engine_method {
         %opts,
         code => $code
     };
-    $api->register_callback("method:$name" => $code, with_evented_obj => 1);
+    $api->on("method:$name" => $code, with_evented_obj => 1);
     
     add_method('Evented::API::Engine', $name);
     return 1;
@@ -115,7 +115,7 @@ sub register_module_method {
         %opts,
         code => $code
     };
-    $api->register_callback("module.method:$name" => $code, with_evented_obj => 1);
+    $api->on("module.method:$name" => $code, with_evented_obj => 1);
     
     add_method('Evented::API::Module', $name);
     return 1;
