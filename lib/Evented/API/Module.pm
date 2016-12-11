@@ -221,6 +221,11 @@ sub dependencies {
     return @{ shift->{dependencies} || [] };
 }
 
+# returns the modules that this companion submodule depends on.
+sub companions {
+    return @{ shift->{companions} || [] };
+}
+
 # returns the top-level modules that depend on this.
 sub dependents {
     my $mod = shift;
@@ -234,7 +239,13 @@ sub dependents {
 
 # returns the companion submodules that depend on this.
 sub dependent_companions {
-    return @{ shift->{dependent_companions} || [] };
+    my $mod = shift;
+    my @mods;
+    foreach my $m (@{ $mod->api->{loaded} }) {
+        next unless first { $_ == $mod } $m->companions;
+        push @mods, $m;
+    }
+    return @mods;
 }
 
 1;

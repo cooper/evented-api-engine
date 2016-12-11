@@ -569,11 +569,13 @@ sub unload_module {
     # fire module void. if the fire was stopped, give up.
     $mod->_do_void($unloading_submodule) or return;
 
+    # Safe point: from here, we can assume it will be unloaded for sure.
+
 
     # UNLOAD DEPENDENCIES
     #------------------------
 
-    # if we're unloading recursiveLog(y, do so now.
+    # if we're unloading recursively, do so now.
     if ($unload_dependents && @dependents) {
         $mod->Log("Unloading dependent modules");
         $api->{indent}++;
@@ -582,17 +584,11 @@ sub unload_module {
         $api->{indent}--;
     }
 
-    # Safe point: from here, we can assume it will be unloaded for sure.
+    # unload companion submodules that depend on this.
+    $_->parent->unload_submodule($_, $reloading) for $mod->dependent_companions;
 
-    # unload submodules and companions.
-    # ($unload_dependents, $force, $unloading_submodule, $reloading)
-    my @submodules = $mod->submodules;
-    my @companions = $mod->dependent_companions;
-    $mod->Log("Unloading submodules") if @submodules || @companions;
-    $api->{indent}++;
-        $_->parent->unload_submodule($_, $reloading) for @companions;
-        $mod->unload_submodule($_, $reloading)       for @submodules;
-    $api->{indent}--;
+    # unload my own submodules.
+    $mod->unload_submodule($_, $reloading) for $mod->submodules;
 
     # if we're reloading, add to unloaded list.
     push @{ $api->{r_unloaded} }, $mod->name
@@ -708,7 +704,7 @@ sub _load_companion_submodules {
         my $submod = $parent_mod->load_submodule($submod_name) or next;
 
         # remember that this submodule depends on $mod.
-        push @{ $mod->{dependent_companions} ||= [] }, $submod;
+        push @{ $submod->{companions} ||= [] }, $mod;
 
     }
 
