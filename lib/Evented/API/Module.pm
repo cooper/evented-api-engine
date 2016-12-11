@@ -124,7 +124,7 @@ sub load_submodule {
 }
 
 sub unload_submodule {
-    my ($mod, $submod) = @_;
+    my ($mod, $submod, $reloading) = @_;
     my $submod_name = $submod->name;
     $mod->Log("Unloading submodule $submod_name");
 
@@ -137,7 +137,7 @@ sub unload_submodule {
         # but do say we are unloading a submodule so it can be unloaded
         # independently (which usually wouldn't be allowed)
         #
-        $mod->api->unload_module($submod, 1, undef, 1, undef);
+        $mod->api->unload_module($submod, 1, undef, 1, $reloading);
 
     $mod->api->{indent}--;
 
