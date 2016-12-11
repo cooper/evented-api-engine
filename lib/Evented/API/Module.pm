@@ -31,6 +31,7 @@ sub L {
     $mod->api->L($mod->name, "@_");
 }
 
+sub _log;
 *_log = *L;
 
 sub get_symbol {
@@ -220,7 +221,7 @@ sub dependencies {
     return @{ shift->{dependencies} || [] };
 }
 
-# returns the modules that depend on this.
+# returns the top-level modules that depend on this.
 sub dependents {
     my $mod = shift;
     my @mods;
@@ -229,6 +230,11 @@ sub dependents {
         push @mods, $m;
     }
     return @mods;
+}
+
+# returns the companion submodules that depend on this.
+sub dependent_companions {
+    return @{ shift->{dependent_companions} || [] };
 }
 
 1;

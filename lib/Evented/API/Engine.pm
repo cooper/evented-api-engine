@@ -535,6 +535,7 @@ sub unload_module {
         # if we're forcing to unload, we just gotta unload the parent.
         # this module will be unloaded because of $unload_dependents, so return.
         if ($force) {
+            # ($mod, $unload_dependents, $force, ...)
             $api->unload_module($mod->{parent}, 1, 1);
         }
 
@@ -555,8 +556,9 @@ sub unload_module {
     # check if any loaded modules are dependent on this one.
     # if we're unloading recursively, do so after voiding.
     my @dependents = $mod->dependents;
+    my @submodules = ($mod->submodules, $mod->dependent_companions);
     if (!$unload_dependents && @dependents) {
-        my $dependents = join ', ', map { $_->name } @dependents;
+        my $dependents = join ', ', map $_->name, @dependents;
         $mod->L("Can't unload: Dependent modules: $dependents");
         return;
     }
@@ -576,7 +578,9 @@ sub unload_module {
     if ($unload_dependents && @dependents) {
         $mod->L("Unloading dependent modules");
         $api->{indent}++;
-        $api->unload_module($_, 1, 1, undef, $reloading) foreach @dependents;
+            # ($unload_dependents, $force, $unloading_submodule, $reloading)
+            $api->unload_module($_, 1, 1, undef, $reloading) for @dependents;
+            $api->unload_module($_, 1, 1, 1,     $reloading) for @submodules;
         $api->{indent}--;
     }
 
@@ -585,9 +589,6 @@ sub unload_module {
     # if we're reloading, add to unloaded list.
     push @{ $api->{r_unloaded} }, $mod->name
         if $reloading && !$mod->{parent};
-
-    # unload submodules.
-    $api->unload_module($_, 1, 1, 1, $reloading) foreach $mod->submodules;
 
 
     # POST-UNLOAD
@@ -620,7 +621,7 @@ sub unload_module {
 ### RELOADING MODULES ###
 #########################
 
-# reload a module.
+# reload modules.
 sub reload_module {
     my ($api, @mods) = @_;
     my $count = 0;
@@ -644,6 +645,7 @@ sub reload_module {
 
         # unload the module.
         $mod->{reloading} = 1;
+        # ($mod, $unload_dependents, $force, $unloading_submodule, $reloading)
         $api->unload_module($mod, 1, 1, undef, 1) or return;
     }
 
@@ -652,11 +654,15 @@ sub reload_module {
     my $unloaded = delete $api->{r_unloaded};
     while (my $mod_name = shift @$unloaded) {
         next if $api->module_loaded($mod_name);
+        # ($mod_name, $dirs, $is_submodule, $reloading);
         $count++ if $api->load_module($mod_name, undef, undef, 1);
     }
 
     return $count;
 }
+
+sub reload_modules;
+*reload_modules = *reload_module;
 
 ############################
 ### COMPANION SUBMODULES ###
@@ -682,40 +688,22 @@ sub _add_companion_submodule_wait {
 
 sub _load_companion_submodules {
     my ($api, $mod) = @_;
-    my $waits = $api->{companion_waits}{ $mod->name } or return;
+    my $waits = delete $api->{companion_waits}{ $mod->name } or return;
     ref $waits eq 'ARRAY' or return;
 
     my $status;
     foreach (@$waits) {
         my ($parent_mod, $submod_name) = @$_;
 
-        # load it
+        # load the submodule.
         $parent_mod->L("Loading companion submodule");
-        my $submod = $parent_mod->load_submodule($submod_name);
+        my $submod = $parent_mod->load_submodule($submod_name) or next;
 
-        # when this mod unloads, unload the submodule
-        if ($submod) {
-            $submod_name = $submod->name;
+        # remember that this submodule depends on $mod.
+        push @{ $mod->{dependent_companions} ||= [] }, $submod;
 
-            # create weak references for the callback
-            weaken(my $weak_submod     = $submod);
-            weaken(my $weak_parent_mod = $parent_mod);
-
-            # attach an unload callback
-            $mod->on(unload => sub {
-                return if !$weak_parent_mod || !$weak_submod;
-                $weak_parent_mod->L('Unloading companion submodule');
-                $weak_parent_mod->unload_submodule($weak_submod);
-            }, name => "companion.$submod_name");
-
-            $status = 1;
-        }
-        else {
-            $parent_mod->L('Companion submodule failed to load');
-        }
     }
 
-    delete $api->{companion_waits}{ $mod->name };
     return $status;
 }
 
@@ -807,8 +795,6 @@ sub has_feature {
 ### MISCELLANEOUS ###
 #####################
 
-*_log = *L;
-
 # API log.
 sub L {
     my ($api, $pfx, $msg) = @_;
@@ -828,6 +814,9 @@ sub L {
 
     return 1;
 }
+
+sub _log;
+*_log = *L;
 
 # unload a package and delete its symbols.
 # package_unload('My::Package')
