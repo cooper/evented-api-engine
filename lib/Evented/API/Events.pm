@@ -122,7 +122,8 @@ sub mod_callback_deleted {
 }
 
 sub mod_unloaded {
-    my $done; my $mod = shift->object;
+    my $mod = shift;
+    my $done;
     foreach my $e ($mod->list_store_items('managed_events')) {
         my ($eo, $event_name, $name) = @$e;
         my $ref = ref $eo;
