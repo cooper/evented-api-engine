@@ -11,7 +11,7 @@ use 5.010;
 
 use JSON::XS;
 use Scalar::Util qw(weaken blessed);
-use Module::Loaded qw(mark_as_loaded is_loaded);
+use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
