@@ -137,7 +137,7 @@ sub unload_submodule {
         # but do say we are unloading a submodule so it can be unloaded
         # independently (which usually wouldn't be allowed)
         #
-        $mod->api->unload_module($submod, 1, undef, 1, $reloading);
+        $mod->api->unload_module($submod, undef, undef, 1, $reloading);
 
     $mod->api->{indent}--;
 
