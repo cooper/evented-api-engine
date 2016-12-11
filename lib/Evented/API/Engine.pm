@@ -199,7 +199,7 @@ sub load_module {
 
     # we could not find the module in this search directory. try the next one.
     else {
-        return $api->load_module(@_);
+        return $api->load_module(@_[1..$#_]);
     }
 
 
