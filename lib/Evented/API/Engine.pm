@@ -18,6 +18,7 @@ use parent 'Evented::Object';
 our $VERSION = '4.00';
 
 use Evented::API::Module;
+use Evented::API::Events;
 use Evented::Object::Hax qw(set_symbol make_child);
 
 # create a new API Engine.
