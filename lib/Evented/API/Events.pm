@@ -9,9 +9,9 @@ use Evented::Object;
 use parent 'Evented::Object';
 
 use Scalar::Util qw(blessed weaken);
+use Evented::Object::Hax qw(set_symbol);
 
 our $VERSION = '4.00';
-our $events  = $Evented::Object::events;
 
 sub add_events {
     my $mod = shift;
@@ -26,7 +26,7 @@ sub add_events {
     # default void handler.
     $mod->on(void => \&mod_default_void,
         name     => 'api.engine.voidSubroutine',
-        priority => 100
+        priority => 100,
         with_eo  => 1
     );
 
@@ -69,7 +69,7 @@ sub mod_default_void {
 
 sub mod_default_set_variables {
     my $mod = shift;
-    set_symbol($pkg, {
+    set_symbol($mod->package, {
         '$api'      => $mod->api,
         '$mod'      => $mod,
         '$VERSION'  => $mod->{version}

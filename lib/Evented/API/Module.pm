@@ -13,7 +13,6 @@ use Scalar::Util qw(blessed weaken);
 use List::Util qw(first);
 
 our $VERSION = '4.00';
-our $events  = $Evented::Object::events;
 
 sub new {
     my ($class, %opts) = @_;
