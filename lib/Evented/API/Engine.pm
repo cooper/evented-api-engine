@@ -590,8 +590,8 @@ sub unload_module {
     my @companions = $mod->dependent_companions;
     $mod->Log("Unloading submodules") if @submodules || @companions;
     $api->{indent}++;
-        $api->unload_module($_, 1, 1,     1, $reloading) for @submodules;
-        $api->unload_module($_, 1, undef, 1, $reloading) for @companions;
+        $_->parent->unload_submodule($_, $reloading) for @companions;
+        $mod->unload_submodule($_, $reloading)       for @submodules;
     $api->{indent}--;
 
     # if we're reloading, add to unloaded list.
