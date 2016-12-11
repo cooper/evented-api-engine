@@ -530,13 +530,13 @@ sub unload_module {
     #------------------------
 
     # if this is a submodule, it cannot be unloaded this way.
-    if ($mod->{parent} && !$unloading_submodule) {
+    if ($mod->parent && !$unloading_submodule) {
 
         # if we're forcing to unload, we just gotta unload the parent.
         # this module will be unloaded because of $unload_dependents, so return.
         if ($force) {
             # ($mod, $unload_dependents, $force, ...)
-            $api->unload_module($mod->{parent}, 1, 1);
+            $api->unload_module($mod->parent, 1, 1);
         }
 
         # not forcing unload. give up.
@@ -597,7 +597,7 @@ sub unload_module {
 
     # if we're reloading, add to unloaded list.
     push @{ $api->{r_unloaded} }, $mod->name
-        if $reloading && !$mod->{parent};
+        if $reloading && !$mod->parent;
 
 
     # POST-UNLOAD

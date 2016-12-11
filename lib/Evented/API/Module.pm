@@ -24,6 +24,7 @@ sub new {
 sub name       { shift->{name}{full}            }
 sub package    { shift->{package}               }
 sub api        { shift->{api}                   }
+sub parent     { shift->{parent}                }
 sub submodules { @{ shift->{submodules} || [] } }
 
 sub Log {
