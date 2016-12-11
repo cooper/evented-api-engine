@@ -556,7 +556,6 @@ sub unload_module {
     # check if any loaded modules are dependent on this one.
     # if we're unloading recursively, do so after voiding.
     my @dependents = $mod->dependents;
-    my @submodules = ($mod->submodules, $mod->dependent_companions);
     if (!$unload_dependents && @dependents) {
         my $dependents = join ', ', map $_->name, @dependents;
         $mod->Log("Can't unload: Dependent modules: $dependents");
@@ -580,11 +579,14 @@ sub unload_module {
         $api->{indent}++;
             # ($unload_dependents, $force, $unloading_submodule, $reloading)
             $api->unload_module($_, 1, 1, undef, $reloading) for @dependents;
-            $api->unload_module($_, 1, 1, 1,     $reloading) for @submodules;
         $api->{indent}--;
     }
 
     # Safe point: from here, we can assume it will be unloaded for sure.
+
+    # unload submodules and companions.
+    my @submodules = ($mod->submodules, $mod->dependent_companions);
+    $api->unload_module($_, 1, 1, 1, $reloading) for @submodules;
 
     # if we're reloading, add to unloaded list.
     push @{ $api->{r_unloaded} }, $mod->name
@@ -606,10 +608,10 @@ sub unload_module {
     # prepare for destruction.
     $mod->{UNLOADED} = 1;
     bless $mod, 'Evented::API::Module';
-    $mod->Log("Destroying package $$mod{package}");
 
     # clear the symbol table of this module.
     # if preserve_sym is set and this is during reload, don't delete symbols.
+    $mod->Log("Destroying package $$mod{package}");
     _package_unload($mod->{package})
         unless $mod->{preserve_sym} && $reloading;
 
