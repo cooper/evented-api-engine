@@ -567,7 +567,7 @@ sub unload_module {
     #------------------------
 
     # fire module void. if the fire was stopped, give up.
-    $mod->_do_void($unloading_submodule);
+    $mod->_do_void($unloading_submodule) or return;
 
 
     # UNLOAD DEPENDENCIES
