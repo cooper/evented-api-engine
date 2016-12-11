@@ -363,7 +363,7 @@ sub _load_module_requirements {
         # load the dependency.
         $api->L($mod_name, "Requirements: Loading dependency $dep_name");
         $api->{indent}++;
-            my $ok = $api->load_module($mod_name);
+            my $ok = $api->load_module($dep_name);
         $api->{indent}--;
 
         # something went wrong.
