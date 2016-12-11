@@ -82,7 +82,7 @@ sub mod_event_registered {
 
     # permanent - ignore.
     if ($cb->{permanent}) {
-        $mod->L("Permanent event: $event_name ($$cb{name}) registered to $ref");
+        $mod->Log("Permanent event: $event_name ($$cb{name}) registered to $ref");
         return;
     }
 
@@ -91,13 +91,13 @@ sub mod_event_registered {
     weaken($e->[0]);
 
     $mod->list_store_add('managed_events', $e);
-    $mod->L("Event: $event_name ($$cb{name}) registered to $ref");
+    $mod->Log("Event: $event_name ($$cb{name}) registered to $ref");
 }
 
 sub mod_event_deleted {
     my ($mod, $fire, $eo, $event_name) = @_;
     my $ref = ref $eo;
-    $mod->L("Event: $event_name (all callbacks) deleted from $ref");
+    $mod->Log("Event: $event_name (all callbacks) deleted from $ref");
     $mod->list_store_remove_matches('managed_events', sub {
         my $e = shift;
         return 1 if not defined $e->[0]; # disposed
@@ -110,7 +110,7 @@ sub mod_event_deleted {
 sub mod_callback_deleted {
     my ($mod, $fire, $eo, $event_name, $cb_name) = @_;
     my $ref = ref $eo;
-    $mod->L("Event: $event_name ($cb_name) deleted from $ref");
+    $mod->Log("Event: $event_name ($cb_name) deleted from $ref");
     $mod->list_store_remove_matches('managed_events', sub {
         my $e = shift;
         return 1 if not defined $e->[0]; # disposed
@@ -134,14 +134,14 @@ sub mod_unloaded {
 
         # first one.
         if (!$done) {
-            $mod->L('Destroying managed event callbacks');
+            $mod->Log('Destroying managed event callbacks');
             $mod->api->{indent}++;
             $done = 1;
         }
 
         # delete this callback.
         $eo->delete_callback($event_name, $name);
-        $mod->L("Event: $event_name ($name) deleted from $ref");
+        $mod->Log("Event: $event_name ($name) deleted from $ref");
 
     }
     $mod->api->{indent}-- if $done;

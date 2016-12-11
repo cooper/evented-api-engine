@@ -26,13 +26,13 @@ sub package    { shift->{package}               }
 sub api        { shift->{api}                   }
 sub submodules { @{ shift->{submodules} || [] } }
 
-sub L {
+sub Log {
     my $mod = shift;
-    $mod->api->L($mod->name, "@_");
+    $mod->api->Log($mod->name, "@_");
 }
 
 sub _log;
-*_log = *L;
+*_log = *Log;
 
 sub get_symbol {
     my ($mod, $symbol) = @_;
@@ -44,15 +44,15 @@ sub _do_init {
     my $api = $mod->api;
 
     # fire module initialize.
-    $api->L($mod->name, 'Initializing');
+    $api->Log($mod->name, 'Initializing');
     $api->{indent}++;
         my $init_fire = $mod->prepare('init')->fire('return_check');
     $api->{indent}--;
 
     # init was stopped. cancel the load.
     if (my $stopper = $init_fire->stopper) {
-        $mod->L('init stopped: '.$init_fire->stop);
-        $mod->L("Load FAILED: Initialization canceled by '$stopper'");
+        $mod->Log('init stopped: '.$init_fire->stop);
+        $mod->Log("Load FAILED: Initialization canceled by '$stopper'");
 
         $api->_abort_module_load($mod);
 
@@ -74,20 +74,20 @@ sub _do_void {
 
     # fire module void.
     # consider: should this have return_check like init?
-    $mod->L('Voiding');
+    $mod->Log('Voiding');
     my $void_fire = $mod->fire('void');
 
     # init was stopped. cancel the unload.
     my $stopper = $void_fire->stopper;
     if (!$unloading_submodule && $stopper) {
-        $mod->L("void stopped: ".$void_fire->stop);
-        $mod->L("Can't unload: canceled by '$stopper'");
+        $mod->Log("void stopped: ".$void_fire->stop);
+        $mod->Log("Can't unload: canceled by '$stopper'");
         return;
     }
 
     # if this is a submodule, it isn't allowed to refuse to unload.
     elsif ($stopper) {
-        $mod->L(
+        $mod->Log(
             "Warning! This submodule has requested to remain ".
             'loaded, but submodules MUST be unloaded with their parent'
         );
@@ -104,7 +104,7 @@ sub _do_void {
 
 sub load_submodule {
     my ($mod, $mod_name) = @_;
-    $mod->L("Loading submodule $mod_name");
+    $mod->Log("Loading submodule $mod_name");
 
     # call ->load_module with the search dir set to the
     # parent module's main directory.
@@ -126,7 +126,7 @@ sub load_submodule {
 sub unload_submodule {
     my ($mod, $submod) = @_;
     my $submod_name = $submod->name;
-    $mod->L("Unloading submodule $submod_name");
+    $mod->Log("Unloading submodule $submod_name");
 
     # unload
     $mod->api->{indent}++;
