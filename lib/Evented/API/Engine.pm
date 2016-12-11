@@ -585,7 +585,12 @@ sub unload_module {
     }
 
     # unload companion submodules that depend on this.
-    $_->parent->unload_submodule($_, $reloading) for $mod->dependent_companions;
+    if (my @companions = $mod->dependent_companions) {
+        $mod->Log("Unloading dependent companions");
+        $api->{indent}++;
+            $_->parent->unload_submodule($_, $reloading) for @companions;
+        $api->{indent}--;
+    }
 
     # unload my own submodules.
     $mod->unload_submodule($_, $reloading) for $mod->submodules;
