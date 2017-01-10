@@ -15,7 +15,7 @@ use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION = '4.01';
+our $VERSION = '4.02';
 
 use Evented::API::Module;
 use Evented::API::Events;
@@ -383,37 +383,43 @@ sub _get_module_info {
     my ($api, $mod_name, $mod_dir, $mod_last_name) = @_;
 
     # try reading module JSON file.
-    my $path = "$mod_dir/$mod_last_name.json";
-    my $info = my $slurp = $api->_slurp(undef, $mod_name, $path);
+    my $path  = "$mod_dir/$mod_last_name.json";
+    my $slurp = $api->_slurp($mod_name, $path);
 
     # no file - start with an empty hash.
-    if (!length $info) {
+    my ($info, $use_manifest);
+    if (!length $slurp) {
         $api->Log($mod_name, "No JSON manifest found at $path");
         $info = {};
     }
 
-    # parse JSON.
-    elsif (not $info = eval { $json->decode($info) }) {
+    # parse JSON. stop here if an error occurs, or if the manifest yields
+    # something other than a JSON object.
+    elsif (!($info = eval { $json->decode($slurp) }) || ref $info ne 'HASH') {
         $api->Log($mod_name, "Load FAILED: JSON parsing of $path failed: $@");
         $api->Log($mod_name, "JSON text: $slurp");
         return;
     }
 
-    # JSON was valid. now let's check the modified times.
+    # JSON was decoded successfully at this point.
+    # developer mode is disabled, so return the manifest.
+    elsif (!$api->{developer}) {
+        $use_manifest++;
+    }
+
+    # JSON was decoded successfully, but we're in developer mode.
+    # check the modification times. only use the manifest if the module's
+    # main package has not been modified since the manifest was written.
     else {
         my $pkg_modified = (stat "$mod_dir/$mod_last_name.pm"  )[9];
         my $man_modified = (stat "$mod_dir/$mod_last_name.json")[9];
+        $use_manifest++ if $man_modified >= $pkg_modified;
+    }
 
-        # if not in developer mode, always use manifest.
-        #
-        # or the manifest file is more recent or equal to the package file.
-        # the JSON info is therefore up-to-date
-        #
-        if (!$api->{developer} || $man_modified >= $pkg_modified) {
-            $info->{name} = { full => $info->{name} } if !ref $info->{name};
-            return $info;
-        }
-
+    # info was determined by JSON manifest.
+    if ($use_manifest) {
+        $info->{name} = { full => $info->{name} } if !ref $info->{name};
+        return $info;
     }
 
     $api->Log($mod_name, 'Scanning for metadata');
@@ -846,13 +852,12 @@ sub _package_unload {
 
 # read contents of file.
 sub _slurp {
-    my ($api, $log_type, $mod_name, $file_name) = @_;
+    my ($api, $mod_name, $file_name) = @_;
 
     # open file.
     my $fh;
     if (!open $fh, '<', $file_name) {
-        return unless $log_type;
-        $api->Log($file_name, 'Could not open for reading');
+        $api->Log($mod_name, "$file_name: Could not open for reading: $!");
         return;
     }
 
