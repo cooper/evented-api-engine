@@ -15,7 +15,7 @@ use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION = '4.04';
+our $VERSION = '4.05';
 
 use Evented::API::Module;
 use Evented::API::Events;
@@ -446,25 +446,50 @@ sub _get_module_info {
     # parse for variables.
     my $old_version = $info->{version} || 0;
     my ($new_info, $parsed_lines) = {};
-    while (my $line = <$fh>) {
-        next unless $line =~ m/^#\s*@([\.\w]+)\s*:(.+)$/;
+    LINE: while (my $line = <$fh>) {
+        next unless $line =~ m/^#\s*@([\.\w]+)\s*(?:([:\+]+)(.+))?$/;
         $parsed_lines++;
-        my ($var_name, $perl_value) = ($1, $2);
+        my ($var_name, $sym, $perl_value) = ($1, $2, $3);
 
         # find the correct hash level.
         my ($i, $current, @s) = (0, $new_info, split /\./, $var_name);
-        foreach my $l (@s) {
+        LEVEL: foreach my $l (@s) {
 
             # last level, should contain the value.
             if ($i == $#s) {
-                $current->{$l} = eval $perl_value;
-                if (!$current->{$l} && $@) {
-                    $api->Log($mod_name,
-                        "Load FAILED: Evaluating '\@$var_name' failed: $@");
-                    close $fh;
-                    return;
+                my ($is_add, $is_set, $is_bool) = map $sym eq $_, '+', ':', '';
+
+                # for ':' or '+', eval the value now.
+                my $eval;
+                if ($is_set || $is_add) {
+                    $perl_value = "[ $perl_value ]" if $is_add;
+                    $eval = eval $perl_value;
+                    if ($@) {
+                        $api->Log($mod_name,
+                            "Load FAILED: Evaluating '\@$var_name' failed: $@");
+                        close $fh;
+                        return;
+                    }
                 }
-                last;
+
+                # for ':', simply set the value.
+                if ($is_set) {
+                    $current->{$l} = $eval;
+                }
+
+                # for '+', add it to a list.
+                elsif ($is_add) {
+                    $current->{$l} = []
+                        if ref $current->{$l} ne 'ARRAY';
+                    push @{ $current->{$l} }, @$eval;
+                }
+
+                # if there's no sym, this is a boolean.
+                elsif ($is_bool) {
+                    $current->{$l} = 1;
+                }
+
+                last LEVEL;
             }
 
             # set the current level.
