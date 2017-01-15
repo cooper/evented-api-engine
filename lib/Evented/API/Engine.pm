@@ -15,7 +15,7 @@ use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION = '4.02';
+our $VERSION = '4.03';
 
 use Evented::API::Module;
 use Evented::API::Events;
@@ -263,8 +263,8 @@ sub load_module {
 
     # store dependecy module objects.
     $mod->{dependencies} = [
-        map { $api->get_module($_) }
-        @{ $info->{depends}{modules} || [] }
+        map { $api->get_module($_) }    # this definitely is an arrayref;
+        @{ $info->{depends}{modules} }  # verified @ ->_load_module_requirements
     ];
 
     # make the API Engine listen to the events of the module.
@@ -339,13 +339,27 @@ sub _load_module_requirements {
     my ($api, $info) = @_;
     my $mod_name = $info->{name}{full};
 
-    # find the names of module dependencies.
-    my $dep_names = $info->{depends}{modules} or return 1;
-    $dep_names = $info->{depends}{modules} = [ $dep_names ]
-        if ref $dep_names ne 'ARRAY';
+    # @depends.modules
+    my @dep_names;
+    my $names = delete $info->{depends}{modules};
+    push @dep_names, @$names
+        if ref $names eq 'ARRAY';
+    push @dep_names, $names
+        if length $names && !ref $names;
+
+    # @depends.bases
+    $names = delete $info->{depends}{bases};
+    push @dep_names, map "Base::$_", @$names
+        if ref $names eq 'ARRAY';
+    push @dep_names, "Base::$names"
+        if length $names && !ref $names;
+
+    # store as arrayref.
+    $info->{depends}{modules} = \@dep_names;
+    return 1 if !@dep_names;
 
     # check each dependency.
-    foreach my $dep_name (@$dep_names) {
+    foreach my $dep_name (@dep_names) {
 
         # dependency already loaded.
         if ($api->module_loaded($dep_name)) {
@@ -356,8 +370,8 @@ sub _load_module_requirements {
 
         # prevent endless loops.
         if ($info->{name} eq $dep_name) {
-            $api->Log($mod_name, 'Requirements: Module depends on itself');
-            next;
+            $api->Log($mod_name, 'Load FAILED: Module depends on itself');
+            return;
         }
 
         # load the dependency.
