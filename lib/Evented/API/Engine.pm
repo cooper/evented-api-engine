@@ -15,7 +15,7 @@ use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION = '4.03';
+our $VERSION = '4.04';
 
 use Evented::API::Module;
 use Evented::API::Events;
@@ -444,13 +444,15 @@ sub _get_module_info {
         and return;
 
     # parse for variables.
-    my $old_version = delete $info->{version} || 0;
+    my $old_version = $info->{version} || 0;
+    my ($new_info, $parsed_lines) = {};
     while (my $line = <$fh>) {
         next unless $line =~ m/^#\s*@([\.\w]+)\s*:(.+)$/;
+        $parsed_lines++;
         my ($var_name, $perl_value) = ($1, $2);
 
         # find the correct hash level.
-        my ($i, $current, @s) = (0, $info, split /\./, $var_name);
+        my ($i, $current, @s) = (0, $new_info, split /\./, $var_name);
         foreach my $l (@s) {
 
             # last level, should contain the value.
@@ -459,6 +461,7 @@ sub _get_module_info {
                 if (!$current->{$l} && $@) {
                     $api->Log($mod_name,
                         "Load FAILED: Evaluating '\@$var_name' failed: $@");
+                    close $fh;
                     return;
                 }
                 last;
@@ -467,11 +470,14 @@ sub _get_module_info {
             # set the current level.
             $current = ( $current->{$l} ||= {} );
             $i++;
-
         }
-
     }
     close $fh;
+
+    # only accept the new info if there actually were variables in the comments.
+    # some modules might choose to rely solely on the JSON manifest, in which
+    # case we should preserve the old info.
+    $info = $new_info if $parsed_lines;
 
     # if in developer mode, write the changes.
     if ($api->{developer}) {
@@ -500,7 +506,6 @@ sub _get_module_info {
         close $fh;
 
         $api->Log($mod_name, "JSON: Updated module information file");
-
     }
 
     $info->{version} //= $old_version;
