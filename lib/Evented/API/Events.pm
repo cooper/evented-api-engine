@@ -12,7 +12,7 @@ use parent 'Evented::Object';
 use Scalar::Util qw(blessed weaken);
 use Evented::Object::Hax qw(set_symbol);
 
-our $VERSION = '4.06';
+our $VERSION = '4.07';
 
 sub add_events {
     my $mod = shift;
@@ -36,7 +36,7 @@ sub add_events {
         \&mod_default_set_variables, 'api.engine.setVariables');
 
     # make the module a class monitor of the package.
-    Evented::Object::add_class_monitor($mod->package, $mod);
+    Evented::Object::add_class_monitor($_, $mod) for @{ $mod->{package} };
 
     # registered callback.
     $mod->on('monitor:register_callback' =>

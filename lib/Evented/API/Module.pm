@@ -12,7 +12,7 @@ use parent 'Evented::Object';
 use Scalar::Util qw(blessed weaken);
 use List::Util qw(first);
 
-our $VERSION = '4.06';
+our $VERSION = '4.07';
 
 sub new {
     my ($class, %opts) = @_;

@@ -15,20 +15,57 @@ use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION = '4.06';
+our $VERSION = '4.07';
 
 use Evented::API::Module;
 use Evented::API::Events;
 use Evented::Object::Hax qw(set_symbol make_child);
 
-# create a new API Engine.
-#
-# Evented::API::Engine->new(
-#     mod_inc  => ['mod', '/usr/share/something/mod'],
-#     features => qw(io-async something-else),
-#     modules  => $conf->keys_for_block('modules')
-# );
-#
+=head2 Evented::API::Engine->new(%opts)
+
+Creates a new instance of the Evented API Engine. This single object will be
+used throughout the life of the application.
+
+    my $api = Evented::API::Engine->new(
+        mod_inc  => [ 'mod', '/usr/share/something/mod' ],
+        features => [ qw(io-async something-else)       ],
+        modules  => [ $conf->keys_for_block('modules')  ]
+    );
+
+Parameters
+
+=over
+
+=item *
+
+B<%opts>: a package whose event activity you're monitoring.
+
+=back
+
+B<%opts> - constructor options
+
+=over
+
+=item *
+
+B<mod_inc> - list of module search directories
+
+=item *
+
+B<features> - I<optional>, list of feature names to enable immediately
+
+=item *
+
+B<modules> - I<optional>, list of names of toplevel modules to load immediately
+
+=item *
+
+B<log_sub> - I<optional>, code to be called for API Engine log messages
+
+=back
+
+=cut
+
 sub new {
     my ($class, %opts) = @_;
 

@@ -1,3 +1,7 @@
+*~
+*.save
+*.old
+*.bak
 blib/
 .build/
 _build/
@@ -9,17 +13,12 @@ Build.bat
 .last_cover_stats
 Makefile
 Makefile.old
-MANIFEST.bak
 META.yml
+MYMETA.yml
 META.json
-MYMETA.ym
-MYMETA.jsonl
+MYMETA.json
 nytprof.out
 pm_to_blib
-*~
-*.save
-*.old
-*.bk
 # Xcode
 .DS_Store
 */build/*
@@ -38,6 +37,7 @@ DerivedData
 .idea/
 *.hmap
 *.xccheckout
+
 etc/*.conf
 etc/*.db
 etc/*.pid
@@ -47,4 +47,7 @@ dev/
 *~
 *.old
 db/*.db
+
+*.tar.gz
+
 mod/API/*/*.json
