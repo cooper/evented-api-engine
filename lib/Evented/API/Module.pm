@@ -1,4 +1,4 @@
-# Copyright (c) 2016, Mitchell Cooper
+# Copyright (c) 2017, Mitchell Cooper
 # Module represents an API module and provides an interface for managing one.
 package Evented::API::Module;
 
@@ -12,7 +12,7 @@ use parent 'Evented::Object';
 use Scalar::Util qw(blessed weaken);
 use List::Util qw(first);
 
-our $VERSION = '4.05';
+our $VERSION = '4.06';
 
 sub new {
     my ($class, %opts) = @_;
@@ -21,8 +21,8 @@ sub new {
     return $mod;
 }
 
-sub name       { shift->{name}{full}            }
-sub package    { shift->{package}               }
+sub name       { shift->{name}{full}            }   # full name
+sub package    { shift->{package}[0]            }   # main package
 sub api        { shift->{api}                   }
 sub parent     { shift->{parent}                }
 sub submodules { @{ shift->{submodules} || [] } }
@@ -37,7 +37,7 @@ sub _log;
 
 sub get_symbol {
     my ($mod, $symbol) = @_;
-    return Evented::Object::Hax::get_symbol($mod->{package}, $symbol);
+    return Evented::Object::Hax::get_symbol($mod->package, $symbol);
 }
 
 sub _do_init {

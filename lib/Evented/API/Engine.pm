@@ -1,4 +1,4 @@
-# Copyright (c) 2016, Mitchell Cooper
+# Copyright (c) 2017, Mitchell Cooper
 #
 # the Evented API Engine is in charge of loading and unloading modules.
 # it also handles dependencies and feature availability.
@@ -15,7 +15,7 @@ use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION = '4.05';
+our $VERSION = '4.06';
 
 use Evented::API::Module;
 use Evented::API::Events;
@@ -219,8 +219,21 @@ sub load_module {
     # from the comments atop the module code if we're in developer mode.
     # give up on loading if we can't retrieve it.
     my $info = $api->_get_module_info($mod_name, $mod_dir, $mod_last_name);
-    return if !$info || ref $info ne 'HASH';
-    my $pkg = $info->{package} or return;
+    if (!$info || ref $info ne 'HASH') {
+        $api->Log($mod_name, "Load FAILED: Malformed manifest");
+        return;
+    }
+
+    # find packages
+    if (!$info->{package}) {
+        $api->Log($mod_name, "Load FAILED: \@package is required");
+        return;
+    }
+    
+    $info->{package} = [ $info->{package} ]
+        if ref $info->{package} ne 'ARRAY';
+    my @pkgs = @{ $info->{package} };
+    my $pkg = $pkgs[0] or return; # main pkg (module constructor)
 
 
     # LOAD DEPENDENCIES
@@ -253,7 +266,7 @@ sub load_module {
     # the constructor returned bogus or nothing.
     if (!$mod || !$mod->isa('Evented::API::Module')) {
         $api->Log($mod_name, "Constructor $constructor->new() failed");
-        _package_unload($pkg);
+        _package_unload(@pkgs);
         return;
     }
 
@@ -273,8 +286,9 @@ sub load_module {
     weaken($mod->{api} = $api);
 
     # here we fire an event which will export symbols for convenient use
-    # within the module package. see Module.pm for defaults.
-    $mod->fire(set_variables => $pkg);
+    # within the module packages. see Module.pm for defaults.
+    print "PKGS: @pkgs\n";
+    $mod->fire(set_variables => $_) for @pkgs;
 
 
     # EVALUATE
@@ -324,9 +338,10 @@ sub load_module {
     $mod->fire('load');
     $mod->Log("Loaded successfully ($$mod{version})");
 
-    # mark the package as loaded.
-    mark_as_loaded($mod->{package})
-        unless is_loaded($mod->{package});
+    # mark the packages as loaded.
+    for my $package (@pkgs) {
+        mark_as_loaded($package) unless is_loaded($package);
+    }
 
     # load postponed companion submodules, if any.
     $api->_load_companion_submodules($mod);
@@ -668,7 +683,7 @@ sub unload_module {
 
     # clear the symbol table of this module.
     # if preserve_sym is set and this is during reload, don't delete symbols.
-    $mod->Log("Destroying package $$mod{package}");
+    $mod->Log("Destroying packages @{ $$mod{package} }");
     _package_unload($mod->{package})
         unless $mod->{preserve_sym} && $reloading;
 
@@ -878,8 +893,18 @@ sub _log;
 *_log = *Log;
 
 # unload a package and delete its symbols.
-# package_unload('My::Package')
+# _package_unload('My::Package')
 sub _package_unload {
+    for (@_) {
+         if (ref $_ eq 'ARRAY') {
+            _package_unload(@$_);
+            next;
+        }
+        __package_unload($_);
+    }
+}
+
+sub __package_unload {
     my $class = shift;
     no strict 'refs';
     @{ $class . '::ISA' } = ();

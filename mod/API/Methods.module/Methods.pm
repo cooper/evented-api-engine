@@ -1,8 +1,9 @@
-# Copyright (c) 2013-14, Mitchell Cooper
+# Copyright (c) 2013-17, Mitchell Cooper
 #
 # @name:            "API::Methods"
 # @version:         Evented::API::Engine->VERSION
 # @package:         "Evented::API::Methods"
+# @description:     "Provides an interface for public API methods"
 #
 # @author.name:     "Mitchell Cooper"
 # @author.website:  "https://github.com/cooper"
@@ -20,14 +21,13 @@ sub init {
     my $fire = shift;
 
     # add methods.
-    export_code('Evented::API::Engine', 'register_engine_method', \&register_engine_method);
-    export_code('Evented::API::Module', 'register_module_method', \&register_module_method);
+    export_code('Evented::API::Engine', 'register_engine_method',
+        \&register_engine_method);
+    export_code('Evented::API::Module', 'register_module_method',
+        \&register_module_method);
 
     # register events.
-    $api->on('module.unload' => \&unload_module,
-        name => 'api.engine.methods',
-        with_evented_obj => 1
-    );
+    $api->on('module.unload' => \&on_unload, 'api.engine.methods');
 
     return 1;
 }
@@ -47,7 +47,7 @@ sub void {
 }
 
 # any module unloaded.
-sub unload_module {
+sub on_unload {
     my $mod = shift;
 
     # fetch methods.
@@ -69,7 +69,8 @@ sub add_method {
         my ($obj, @args) = @_;
 
         # fire with custom caller.
-        my $fire = $obj->prepare_event("method:$method" => @args)->fire(caller => [caller 1]);
+        my $fire = $obj->prepare_event("method:$method" => @args)
+            ->fire(caller => [caller 1]);
 
         return $fire->last_return;
     });
@@ -95,7 +96,13 @@ sub register_engine_method {
         %opts,
         code => $code
     };
-    $api->on("method:$name" => $code, with_evented_obj => 1);
+    
+    # add event
+    $api->on(
+        "method:$name" => $code,
+        _caller => $mod->package,
+        with_eo => 1
+    );
 
     add_method('Evented::API::Engine', $name);
     return 1;
@@ -115,7 +122,13 @@ sub register_module_method {
         %opts,
         code => $code
     };
-    $api->on("module.method:$name" => $code, with_evented_obj => 1);
+    
+    # add event
+    $api->on(
+        "module.method:$name" => $code,
+        _caller => $mod->package,
+        with_eo => 1
+    );
 
     add_method('Evented::API::Module', $name);
     return 1;
