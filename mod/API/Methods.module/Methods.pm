@@ -41,7 +41,7 @@ sub void {
     delete_method('Evented::API::Module', 'register_module_method');
 
     # delete all methods of all modules.
-    unload_module($_) foreach @{ $api->{loaded} };
+    on_unload($_) foreach @{ $api->{loaded} };
 
     return 1;
 }
