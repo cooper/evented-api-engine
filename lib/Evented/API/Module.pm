@@ -14,6 +14,143 @@ use List::Util qw(first);
 
 our $VERSION = '4.07';
 
+=head1 NAME
+
+B<Evented::API::Module> - represents a module for use with
+L<Evented::API::Engine>.
+
+=head1 SYNOPSIS
+
+    # Module metadata
+    #
+    # @name:        'My::Module'
+    # @package:     'M::My::Module'
+    # @description:
+    #
+    # @depends.modules+ 'Some::Other'
+    # @depends.modules+ 'Another::Yet'
+    #
+    # @author.name:     'Mitchell Cooper'
+    # @author.website:  'https://github.com/cooper'
+    #
+    package M::My::Module;
+    
+    use warnings;
+    use strict;
+    use 5.010;
+    
+    # Auto-exported variables
+    our ($api, $mod);
+    
+    # Default initializer
+    sub init {
+        say 'Loading ', $mod->name;
+        
+        # indicates load success
+        return 1;
+    }
+    
+    # Default deinitializer
+    sub void {
+        say 'Bye!';
+        
+        # indicates unload success
+        return 1;
+    }
+    
+    # Package must return module object
+    $mod;
+
+=head1 DESCRIPTION
+
+=head2 Module directory structure
+
+Modules must be placed within one of the search directories specified in the
+L<Evented:API::Engine> C<mod_inc> consturctor option or the C<dirs> option
+of C<< ->load_module >> and similar Engine methods.
+
+A module in its simplest form is a directory with the C<.module> extension
+and a single C<.pm> file of the same name. Double-colon namespace separators
+are condensed to directories, as with normal Perl packages. For instance, a
+module called My::Backend's main package file could be located at either of the
+following:
+
+    $SEARCH_DIR/My/Backend.module/Backend.pm
+    $SEARCH_DIR/My/Backend/Backend.module/Backend.pm
+
+The directory with the C<.module> extension is called the module directory. In
+addition to the Perl package file, it can house other data associated with the
+module, such as JSON-encoded metadata, submodules, and documentation.
+
+    $MODULE_DIR/Backend.pm              # package file
+    $MODULE_DIR/Backend.json            # metadata file
+    $MODULE_DIR/Backend.md              # documentation
+    $MODULE_DIR/More.module/More.pm     # submodule package
+    $MODULE_DIR/More.module/More.json   # submodule metadata
+    
+=head2 Module metadata
+
+Module metadata is extracted from comments in primary package file.
+
+Metadata is written to a C<.json> file within the module directory
+(when developer mode is enabled). These metadata files should be included in
+distributions, as they contains version and author information.
+
+B<Syntax> for metadata comments is as follows:
+
+    # @normal:      "A normal option with a Perl-encoded value"
+    # @boolean      # a boolean option!
+    # @list+        'A value to add to a list'
+    # @list+        'Another value to add to the list'
+    
+B<Supported options>
+
+    # @name:                'Some::Module'              # module name
+    # @package:             'M::Some::Module'           # main package
+    # @package+             'M::Some::Module::Blah'     # additional packages
+    # @version:             '1.01'                      # module version
+    # @depends.modules+     'Some::Mod::Dependency'     # module dependencies
+    # @depends.modules+     'A::B', 'C::D'              # additional dependencies
+    # @depends.bases+       'Some::Base::Dependency'    # base dependencies
+    # @author.name:         'John Doe'                  # author name
+    # @author.website:      'http://john.example.com'   # author URL
+    # @no_bless                                         # don't bless
+    # @preserve_sym                                     # don't erase symbols
+    
+These, I feel, require additional explanation:
+
+=over
+
+B<@version> - this, obviously, is a numerical module version. I'm mentioning it
+here to tell you that you probably shouldn't bother using it, as the API Engine
+offers automatic versioning (with developer mode enabled) if you simply omit
+this option.
+
+=item *
+
+B<@depends.bases> - like C<@depends.modules>, except the C<Base::> prefix is
+added. bases are modules which don't really offer any functionality on their
+own but provide APIs for other modules to use.
+
+=item *
+
+B<@no_bless> - if true, the module object will not be blessed to the module's
+primary package (which is the default behavior). this might be useful if your
+module contains names conflicting with API Engine or uses autoloading.
+
+=item *
+
+B<@preserve_sym> - if true, the packages associated with the module will not be
+deleted from the symbol table upon unload. this is worse for memory, but it
+may be necessary for the "guts" of your program, particularly those parts which
+deal with the loading and unloading of modules themselves.
+
+=back
+
+=head1 METHODS
+
+=cut
+
 sub new {
     my ($class, %opts) = @_;
     my $mod = bless \%opts, $class;

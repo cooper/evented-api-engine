@@ -148,6 +148,12 @@ B<\@modules> - I<optional>, list of names of toplevel modules to load immediatel
 
 B<\&log_sub> - I<optional>, code to be called for API Engine log messages
 
+=item *
+
+B<$developer> - I<optional>, if true, module info will be written to JSON
+metadata files. your program should include a developer mode option which in
+turn enables this.
+
 =back
 
 =cut
@@ -1148,7 +1154,7 @@ B<$key> - name for fetching data later.
 
 =item *
 
-B<value> - value to store.
+B<$value> - value to store.
 
 =back
 
@@ -1194,11 +1200,11 @@ Adds an entry to a list of data associated with the API Engine.
 
 =item *
 
-B<key> - name for fetching data later.
+B<$key> - name for fetching data later.
 
 =item *
 
-B<value> - value to add.
+B<$value> - value to add.
 
 =back
 
@@ -1219,7 +1225,7 @@ Fetches all values in a list associated with the API Engine.
 
 =item *
 
-B<key> - name of the list to retrieve.
+B<$key> - name of the list to retrieve.
 
 =back
 
