@@ -21,6 +21,16 @@ use Evented::API::Module;
 use Evented::API::Events;
 use Evented::Object::Hax qw(set_symbol make_child);
 
+=head1 NAME
+
+B<Evented::API::Engine> - an Evented API Engine for Perl applications.
+
+=head1 SYNOPSIS
+
+=head1 DESCRIPTION
+
+=head1 METHODS
+
 =head2 Evented::API::Engine->new(%opts)
 
 Creates a new instance of the Evented API Engine. This single object will be
@@ -32,7 +42,7 @@ used throughout the life of the application.
         modules  => [ $conf->keys_for_block('modules')  ]
     );
 
-Parameters
+B<Parameters>
 
 =over
 
@@ -134,6 +144,7 @@ sub _configure_api {
 ### LOADING MODULES ###
 #######################
 
+# (deprecated)
 # load modules initially, i.e. from a configuration file.
 # returns the modules that loaded.
 sub load_modules_initially {
@@ -141,8 +152,29 @@ sub load_modules_initially {
     return $api->load_modules(@mod_names);
 }
 
-# load several modules in a group.
-# returns the modules that loaded.
+=head2 $api->load_modules(@mod_names)
+
+Loads one or more modules at once.
+
+This is preferred over calling C<< ->load_module() >> several times in a row
+because it skips common dependencies which have already been attempted.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<mod_names> - list of module names to load
+
+=back
+
+B<Returns>
+
+Module objects for those which loaded successfully.
+
+=cut
+
 sub load_modules {
     my ($api, @mod_names) = @_;
     $api->{load_block} = { in_block => 1 };
@@ -168,6 +200,31 @@ sub load_modules {
 #   $reloading      for internal use. true when the module will be reloaded.
 #                   this is used by $api->reload_module().
 #
+=head2 $api->load_module($mod_name, $dirs)
+
+Loads a toplevel module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<mod_name> - name of the module to load.
+
+=item *
+
+B<dirs> - I<optional>, module search directories. if omitted, the normal search
+directories specified at API Engine construction time will be used.
+
+=back
+
+B<Returns>
+
+On success, the loaded module object. Otherwise, false.
+
+=cut
+
 sub load_module {
     my ($api, $mod_name, $dirs, $is_submodule, $reloading) = @_;
     return unless $mod_name;
@@ -606,7 +663,7 @@ sub _abort_module_load {
 # returns the NAME of the module unloaded.
 #
 # $unload_dependents = recursively unload all dependent modules as well
-# $force = if the module is a submodule, force it to unload by unloading parent also
+# $unload_parent = if the module is a submodule, force it to unload by unloading parent also
 #
 # For internal use only:
 #
@@ -614,8 +671,41 @@ sub _abort_module_load {
 # $reloading = means the module is reloading
 #
 #
+
+=head2 $api->unload_module($mod, $unload_dependents, $unload_parent)
+
+Unloads a module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<mod> - module object or name to unload.
+
+=item *
+
+B<unload_dependents> - I<optional>, if true, modules dependent on the one
+being unloaded will also be unloaded. the normal behavior is to refuse to unload
+if dependent modules are loaded.
+
+=item *
+
+B<unload_parent> - I<optional>, if true and the module being unloaded is a
+submodule, its parent will also be unloaded. the normal behavior is to refuse to
+unload if the requested module is a submodule.
+
+=back
+
+B<Returns>
+
+Name of the unloaded module on success, otherwise false.
+
+=cut
+
 sub unload_module {
-    my ($api, $mod, $unload_dependents, $force,
+    my ($api, $mod, $unload_dependents, $unload_parent,
         $unloading_submodule, $reloading) = @_;
 
     # not blessed, find the module.
@@ -636,8 +726,8 @@ sub unload_module {
 
         # if we're forcing to unload, we just gotta unload the parent.
         # this module will be unloaded because of $unload_dependents, so return.
-        if ($force) {
-            # ($mod, $unload_dependents, $force, ...)
+        if ($unload_parent) {
+            # ($mod, $unload_dependents, $unload_parent, ...)
             $api->unload_module($mod->parent, 1, 1);
         }
 
@@ -681,7 +771,7 @@ sub unload_module {
     if ($unload_dependents && @dependents) {
         $mod->Log("Unloading dependent modules");
         $api->{indent}++;
-            # ($unload_dependents, $force, $unloading_submodule, $reloading)
+            # ($unload_dependents, $unload_parent, $unloading_submodule, $reloading)
             $api->unload_module($_, 1, 1, undef, $reloading) for @dependents;
         $api->{indent}--;
     }
@@ -732,7 +822,45 @@ sub unload_module {
 ### RELOADING MODULES ###
 #########################
 
-# reload modules.
+=head2 $api->reload_module($mod)
+
+Reloads a module.
+
+This is preferred over calling C<< ->unload_module() >> and C<< ->load_module >>
+for a few reasons:
+
+=over
+
+=item *
+
+Some modules that do not allow permanent unloading may allow reloading.
+
+=item *
+
+Unchanged dependencies are not unloaded when reloading.
+
+=item *
+
+Some unchanged data can be retained during reload.
+
+=back
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<mod> - module object or name to reload.
+
+=back
+
+B<Returns>
+
+True on success.
+
+=cut
+
 sub reload_module {
     my ($api, @mods) = @_;
     my $count = 0;
@@ -756,7 +884,7 @@ sub reload_module {
 
         # unload the module.
         $mod->{reloading} = 1;
-        # ($mod, $unload_dependents, $force, $unloading_submodule, $reloading)
+        # ($mod, $unload_dependents, $unload_parent, $unloading_submodule, $reloading)
         $api->unload_module($mod, 1, 1, undef, 1) or return;
     }
 
@@ -771,6 +899,26 @@ sub reload_module {
 
     return $count;
 }
+
+=head2 $api->reload_modules(@mods)
+
+Reloads one or more modules at once. See C<< ->reload_module() >>.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<mods> - module objects or names to reload.
+
+=back
+
+B<Returns>
+
+Number of modules reloaded successfully, false if all failed.
+
+=cut
 
 sub reload_modules;
 *reload_modules = *reload_module;
@@ -822,6 +970,26 @@ sub _load_companion_submodules {
 ### FETCHING MODULES ###
 ########################
 
+=head2 $api->get_module($mod_name)
+
+Fetches a loaded module object.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<mod_name> - name of the module to find.
+
+=back
+
+B<Returns>
+
+Module object on success, false otherwise.
+
+=cut
+
 # returns the module object of a full module name.
 sub get_module {
     my ($api, $mod_name) = @_;
@@ -831,6 +999,26 @@ sub get_module {
     return;
 }
 
+=head2 $api->package_to_module($pkg)
+
+Fetches a loaded module object by the corresponding Perl package name.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<pkg> - Perl package name to find.
+
+=back
+
+B<Returns>
+
+Module object on success, false otherwise.
+
+=cut
+
 # returns the module object associated with a package.
 sub package_to_module {
     my ($api, $package) = @_;
@@ -839,6 +1027,26 @@ sub package_to_module {
     }
     return;
 }
+
+=head2 $api->module_loaded($mod_name)
+
+Returns true if the specified module is loaded.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<mod_name> - name of the module to find.
+
+=back
+
+B<Returns>
+
+True if the module is loaded.
+
+=cut
 
 # returns true if the full module name provided is loaded.
 sub module_loaded {
@@ -850,11 +1058,51 @@ sub module_loaded {
 ### DATA STORAGE ###
 ####################
 
+=head2 $api->store($key, $value)
+
+Stores a piece of data associated with the API Engine.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<key> - name for fetching data later.
+
+=item *
+
+B<value> - value to store.
+
+=back
+
+=cut
+
 # store a piece of data specific to this API Engine.
 sub store {
     my ($api, $key, $value) = @_;
     $api->{store}{$key} = $value;
 }
+
+=head2 $api->retrieve($key)
+
+Retrieves a piece of data associated with the API Engine.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<key> - name associated with data to fetch.
+
+=back
+
+B<Returns>
+
+Fetched data, undef if not found.
+
+=cut
 
 # fetch a piece of data specific to this API Engine.
 sub retrieve {
@@ -862,12 +1110,48 @@ sub retrieve {
     return $api->{store}{$key};
 }
 
+=head2 $api->list_store_add($key, $value)
+
+Adds an entry to a list of data associated with the API Engine.
+
+=over
+
+=item *
+
+B<key> - name for fetching data later.
+
+=item *
+
+B<value> - value to add.
+
+=back
+
+=cut
+
 # adds the item to a list store.
 # if the store doesn't exist, creates it.
 sub list_store_add {
     my ($api, $key, $value) = @_;
     push @{ $api->{store}{$key} ||= [] }, $value;
 }
+
+=head2 $api->list_store_items($key)
+
+Fetches all values in a list associated with the API Engine.
+
+=over
+
+=item *
+
+B<key> - name of the list to retrieve.
+
+=back
+
+B<Returns>
+
+List of fetch values, or empty list if none were found.
+
+=cut
 
 # returns all the items in a list store.
 # if the store doesn't exist, this is
@@ -881,17 +1165,79 @@ sub list_store_items {
 ### FEATURES ###
 ################
 
+=head2 $api->add_feature($feature)
+
+Enables a feature.
+
+Features are just a simple way for modules to determine whether a feature is
+provided by another module. For instance, if multiple modules provide different
+database backends, each of these could enable the database feature. Modules
+requiring a database would check for the feature enabled without having to know
+which module provides it.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<feature> - name of the feature to enable.
+
+=back
+
+=cut
+
 # enable a feature.
 sub add_feature {
     my ($api, $feature) = @_;
     push @{ $api->{features} }, lc $feature;
 }
 
+=head2 $api->remove_feature($feature)
+
+Disables a feature.
+
+See C<< ->add_feature >> for an explanation of features.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<feature> - name of the feature to disable.
+
+=back
+
+=cut
+
 # disable a feature.
 sub remove_feature {
     my ($api, $feature) = @_;
     @{ $api->{features} } = grep { $_ ne lc $feature } @{ $api->{features} };
 }
+
+=head2 $api->has_feature($feature)
+
+Returns true if the specified feature is enabled.
+
+See C<< ->add_feature >> for an explanation of features.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<feature> - name of the feature to find.
+
+=back
+
+B<Returns>
+
+True if the requested feature is enabled.
+
+=cut
 
 # true if a feature is present.
 sub has_feature {
@@ -905,6 +1251,23 @@ sub has_feature {
 #####################
 ### MISCELLANEOUS ###
 #####################
+
+=head2 $api->Log($msg)
+
+Used for logging associated with the API Engine. Use module C<< ->Log() >> for
+messages associated with a specific module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<msg> - text to log.
+
+=back
+
+=cut
 
 # API log.
 sub Log {
@@ -976,3 +1339,12 @@ sub _slurp {
 }
 
 1;
+
+=head1 AUTHOR
+
+L<Mitchell Cooper|https://github.com/cooper> <cooper@cpan.org>
+
+Copyright E<copy> 2017. Released under New BSD license.
+
+Comments, complaints, and recommendations are accepted. Bugs may be reported on
+L<GitHub|https://github.com/cooper/evented-api-engine/issues>.
