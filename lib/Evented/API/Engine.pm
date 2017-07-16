@@ -27,7 +27,83 @@ B<Evented::API::Engine> - an Evented API Engine for Perl applications.
 
 =head1 SYNOPSIS
 
+Main
+
+    my $api = Evented::API::Engine->new;
+    $api->load_module('My::Module');
+
+My::Module
+
+    # Module metadata
+    #
+    # @name:        'My::Module'
+    # @package:     'M::My::Module'
+    # @description:
+    #
+    # @depends.modules+ 'Some::Other'
+    # @depends.modules+ 'Another::Yet'
+    #
+    # @author.name:     'Mitchell Cooper'
+    # @author.website:  'https://github.com/cooper'
+    #
+    package M::My::Module;
+    
+    use warnings;
+    use strict;
+    use 5.010;
+    
+    # Auto-exported variables
+    our ($api, $mod);
+    
+    # Default initializer
+    sub init {
+        say 'Loading ', $mod->name;
+        
+        # indicates load success
+        return 1;
+    }
+    
+    # Default deinitializer
+    sub void {
+        say 'Bye!';
+        
+        # indicates unload success
+        return 1;
+    }
+    
+    # Package must return module object
+    $mod;
+
 =head1 DESCRIPTION
+
+Perl provides a simple way to load dependencies. But what about upgrading or
+unloading? API Engine makes it easy to create an excessively versatile Perl
+application capable of adapting dynamically with the user's ever-changing needs.
+
+=head2 Module management
+
+Modules are Perl packages which can be easily loaded, unloaded, and reloaded.
+API Engine automatically tracks the changes made by each module and reverts them
+upon unload, leaving no trace. With API Engine used properly, it is even
+possible to reload your entire program without restarting it.
+
+Modules themselves can determine the necessity of additional code which may be
+dynamically added and removed through the use of submodules.
+
+=head2 Dependency resolution
+
+API Engine automatically resolves dependencies of both modules and normal Perl
+packages. It loads and unloads dependencies in the proper order. It is also
+possible to specify that a submodule is automatically loaded and unloaded in
+conjunction with some top-level module.
+
+=head2 Event management
+
+API Engine is I<Evented> in that it tracks all
+L<Evented::Object> callbacks attached
+from within modules and automatically removes them upon unloading. This allows
+you to employ events excessively without constantly worrying about their
+eventual disposal.
 
 =head1 METHODS
 

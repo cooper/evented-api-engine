@@ -17,10 +17,15 @@ API Engine automatically tracks the changes made by each module and reverts them
 upon unload, leaving no trace. With API Engine used properly, it is even
 possible to reload your entire program without restarting it.
 
+Modules themselves can determine the necessity of additional code which may be
+dynamically added and removed through the use of submodules.
+
 ### Dependency resolution
 
 API Engine automatically resolves dependencies of both modules and normal Perl
-packages. It loads and unloads dependencies in the proper order.
+packages. It loads and unloads dependencies in the proper order. It is also
+possible to specify that a submodule is automatically loaded and unloaded in
+conjunction with some top-level module.
 
 ### Event management
 
