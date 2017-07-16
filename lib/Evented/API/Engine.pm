@@ -134,19 +134,19 @@ B<%opts> - constructor options
 
 =item *
 
-B<mod_inc> - list of module search directories
+B<\@mod_inc> - list of module search directories
 
 =item *
 
-B<features> - I<optional>, list of feature names to enable immediately
+B<\@features> - I<optional>, list of feature names to enable immediately
 
 =item *
 
-B<modules> - I<optional>, list of names of toplevel modules to load immediately
+B<\@modules> - I<optional>, list of names of toplevel modules to load immediately
 
 =item *
 
-B<log_sub> - I<optional>, code to be called for API Engine log messages
+B<\&log_sub> - I<optional>, code to be called for API Engine log messages
 
 =back
 
@@ -241,7 +241,7 @@ B<Parameters>
 
 =item *
 
-B<mod_names> - list of module names to load
+B<@mod_names> - list of module names to load
 
 =back
 
@@ -286,11 +286,11 @@ B<Parameters>
 
 =item *
 
-B<mod_name> - name of the module to load.
+B<$mod_name> - name of the module to load.
 
 =item *
 
-B<dirs> - I<optional>, module search directories. if omitted, the normal search
+B<\@dirs> - I<optional>, module search directories. if omitted, the normal search
 directories specified at API Engine construction time will be used.
 
 =back
@@ -758,17 +758,17 @@ B<Parameters>
 
 =item *
 
-B<mod> - module object or name to unload.
+B<$mod> - module object or name to unload.
 
 =item *
 
-B<unload_dependents> - I<optional>, if true, modules dependent on the one
+B<$unload_dependents> - I<optional>, if true, modules dependent on the one
 being unloaded will also be unloaded. the normal behavior is to refuse to unload
 if dependent modules are loaded.
 
 =item *
 
-B<unload_parent> - I<optional>, if true and the module being unloaded is a
+B<$unload_parent> - I<optional>, if true and the module being unloaded is a
 submodule, its parent will also be unloaded. the normal behavior is to refuse to
 unload if the requested module is a submodule.
 
@@ -927,7 +927,7 @@ B<Parameters>
 
 =item *
 
-B<mod> - module object or name to reload.
+B<$mod> - module object or name to reload.
 
 =back
 
@@ -986,7 +986,7 @@ B<Parameters>
 
 =item *
 
-B<mods> - module objects or names to reload.
+B<@mods> - module objects or names to reload.
 
 =back
 
@@ -1056,7 +1056,7 @@ B<Parameters>
 
 =item *
 
-B<mod_name> - name of the module to find.
+B<$mod_name> - name of the module to find.
 
 =back
 
@@ -1085,7 +1085,7 @@ B<Parameters>
 
 =item *
 
-B<pkg> - Perl package name to find.
+B<$pkg> - Perl package name to find.
 
 =back
 
@@ -1114,7 +1114,7 @@ B<Parameters>
 
 =item *
 
-B<mod_name> - name of the module to find.
+B<$mod_name> - name of the module to find.
 
 =back
 
@@ -1144,7 +1144,7 @@ B<Parameters>
 
 =item *
 
-B<key> - name for fetching data later.
+B<$key> - name for fetching data later.
 
 =item *
 
@@ -1170,7 +1170,7 @@ B<Parameters>
 
 =item *
 
-B<key> - name associated with data to fetch.
+B<$key> - name associated with data to fetch.
 
 =back
 
@@ -1257,7 +1257,7 @@ B<Parameters>
 
 =item *
 
-B<feature> - name of the feature to enable.
+B<$feature> - name of the feature to enable.
 
 =back
 
@@ -1281,7 +1281,7 @@ B<Parameters>
 
 =item *
 
-B<feature> - name of the feature to disable.
+B<$feature> - name of the feature to disable.
 
 =back
 
@@ -1305,7 +1305,7 @@ B<Parameters>
 
 =item *
 
-B<feature> - name of the feature to find.
+B<$feature> - name of the feature to find.
 
 =back
 
@@ -1339,7 +1339,7 @@ B<Parameters>
 
 =item *
 
-B<msg> - text to log.
+B<$msg> - text to log.
 
 =back
 
