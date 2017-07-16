@@ -121,7 +121,9 @@ These, I feel, require additional explanation:
 
 =over
 
-B<@version> - this, obviously, is a numerical module version. I'm mentioning it
+=item *
+
+B<@version> - this obviously is a numerical module version. I'm mentioning it
 here to tell you that you probably shouldn't bother using it, as the API Engine
 offers automatic versioning (with developer mode enabled) if you simply omit
 this option.
@@ -158,11 +160,50 @@ sub new {
     return $mod;
 }
 
+=head2 $mod->name
+
+B<Returns> module full name.
+
+=head2 $mod->package
+
+B<Returns> module's primary Perl package name.
+
+=head2 $mod->api
+
+B<Returns> associated L<API Engine | Evented::API::Engine>.
+
+=head2 $mod->parent
+
+B<Returns> parent module, if this is a submodule.
+
+=head2 $mod->submodules
+
+B<Returns> list of loaded submodules objects.
+
+=cut
+
 sub name       { shift->{name}{full}            }   # full name
 sub package    { shift->{package}[0]            }   # main package
 sub api        { shift->{api}                   }
 sub parent     { shift->{parent}                }
 sub submodules { @{ shift->{submodules} || [] } }
+
+=head2 $mod->Log($msg)
+
+Used for logging associated with module. Use L<API Engine | Evented:API::Engine>
+C<< ->Log() >> for messages not associated with a specific module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$msg> - text to log.
+
+=back
+
+=cut
 
 sub Log {
     my $mod = shift;
@@ -171,6 +212,27 @@ sub Log {
 
 sub _log;
 *_log = *Log;
+
+=head2 $mod->get_symbol($sym)
+
+Fetches the value of a symbol in module's main package.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$sym> - string symbol; such as C<@list>, C<%hash>, or C<$scalar>.
+
+=back
+
+B<Returns>
+
+The data in its native type (NOT a reference), or the zero value for that type
+if no symbol table entry exists.
+
+=cut
 
 sub get_symbol {
     my ($mod, $symbol) = @_;
@@ -240,6 +302,30 @@ sub _do_void {
 ### SUBMODULES ###
 ##################
 
+=head2 $mod->load_submodule($submod_name)
+
+Loads a submodule.
+
+This is generally used within the module initializer.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$submod_name> - name of the submodule, without the parent module name prefix.
+for instance if the full submodule name is C<My::Module::Sub>, this is simply
+C<Sub>.
+
+=back
+
+B<Returns>
+
+Submodule object on success, false otherwise.
+
+=cut
+
 sub load_submodule {
     my ($mod, $mod_name) = @_;
     $mod->Log("Loading submodule $mod_name");
@@ -260,6 +346,28 @@ sub load_submodule {
 
     return $ret;
 }
+
+=head2 $mod->unload_submodule($submod)
+
+Unloads a submodule.
+
+You do not have to call this in the parent module deinitializer. Only use this
+method if you want to dynamically unload a submodule for some reason without
+unloading the parent module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$submod> - submodule object or name, without the parent module name prefix.
+for instance if the full submodule name is C<My::Module::Sub>, this is simply
+C<Sub>.
+
+=back
+
+=cut
 
 sub unload_submodule {
     my ($mod, $submod, $reloading) = @_;
@@ -288,6 +396,35 @@ sub unload_submodule {
     return 1;
 }
 
+=head2 $mod->add_companion_submodule($mod_name, $submod_name)
+
+Registers a submodule (provided by this module) as a companion of another
+top-level module.
+
+Companion submodules are submodules which are automatically loaded and unloaded
+as needed in conjunction with other top-level modules.
+
+This is generally called from within the parent module initializer.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$mod_name> - name of another top-level module to register the submodule as
+a companion.
+
+=item *
+
+B<$submod_name> - name of the submodule to register a companion, without the
+parent module name prefix. for instance if the full submodule name is
+C<My::Module::Sub>, this is simply C<Sub>.
+
+=back
+
+=cut
+
 sub add_companion_submodule {
     my ($mod, $mod_name, $submod_name) = @_;
     $mod->api->_add_companion_submodule_wait($mod, $mod_name, $submod_name);
@@ -297,11 +434,51 @@ sub add_companion_submodule {
 ### DATA STORAGE ###
 ####################
 
+=head2 $mod->store($key, $value)
+
+Stores a piece of data associated with module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$key> - name for fetching data later.
+
+=item *
+
+B<$value> - value to store.
+
+=back
+
+=cut
+
 # store a piece of data specific to this module.
 sub store {
     my ($mod, $key, $value) = @_;
     $mod->{store}{$key} = $value;
 }
+
+=head2 $mod->retrieve($key, $default_value)
+
+Retrieves a piece of data associated with module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$key> - name associated with data to fetch.
+
+=back
+
+B<Returns>
+
+Fetched data, undef if not found.
+
+=cut
 
 # fetch a piece of data specific to this module.
 sub retrieve {
@@ -309,12 +486,59 @@ sub retrieve {
     return $mod->{store}{$key} //= $default_value;
 }
 
+=head2 $mod->list_store_add($key, $value)
+
+Adds an entry to a list of data associated with module.
+
+=over
+
+=item *
+
+B<$key> - name for fetching data later.
+
+=item *
+
+B<$value> - value to add.
+
+=back
+
+=cut
+
 # adds the item to a list store.
 # if the store doesn't exist, creates it.
 sub list_store_add {
     my ($mod, $key, $value) = @_;
     push @{ $mod->{store}{$key} ||= [] }, $value;
 }
+
+=head2 $mod->list_store_remove_matches($key, $code, $max)
+
+Removes entries satisfying a code from a list of data associated with module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$key> - name of list.
+
+=item *
+
+B<$code> - code reference passed each entry which should return true for
+matches.
+
+=item *
+
+B<$max> - I<optional>, maximum number of entries to remove.
+
+=back
+
+B<Returns>
+
+Number of items removed, false if none matched.
+
+=cut
 
 # remove a single item matching.
 # $max = stop searching when removed this many (optional)
@@ -342,6 +566,24 @@ sub list_store_remove_matches {
     return $removed;
 }
 
+=head2 $mod->list_store_items($key)
+
+Fetches all values in a list associated with module.
+
+=over
+
+=item *
+
+B<$key> - name of the list to retrieve.
+
+=back
+
+B<Returns>
+
+List of fetch values, or empty list if none were found.
+
+=cut
+
 # returns all the items in a list store.
 # if the store doesn't exist, this is
 # still safe and returns an empty list.
@@ -354,15 +596,34 @@ sub list_store_items {
 ### DEPENDENCIES ###
 ####################
 
+=head2 $mod->dependencies
+
+B<Returns> top-level module dependencies.
+
+=cut
+
 # returns the modules that this depends on.
 sub dependencies {
     return @{ shift->{dependencies} || [] };
 }
 
+=head2 $mod->companions
+
+For companion submodules,
+B<Returns> modules that this submodule depends on.
+
+=cut
+
 # returns the modules that this companion submodule depends on.
 sub companions {
     return @{ shift->{companions} || [] };
 }
+
+=head2 $mod->dependents
+
+B<Returns> top-level modules that depend on this module.
+
+=cut
 
 # returns the top-level modules that depend on this.
 sub dependents {
@@ -374,6 +635,12 @@ sub dependents {
     }
     return @mods;
 }
+
+=head2 $mod->dependent_companions
+
+B<Returns> companion submodules that depend on this module.
+
+=cut
 
 # returns the companion submodules that depend on this.
 sub dependent_companions {
