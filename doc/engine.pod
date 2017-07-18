@@ -59,10 +59,11 @@ application capable of adapting dynamically with the user's ever-changing needs.
 
 =head2 Module management
 
-Modules are Perl packages which can be easily loaded, unloaded, and reloaded.
-API Engine automatically tracks the changes made by each module and reverts them
-upon unload, leaving no trace. With API Engine used properly, it is even
-possible to reload your entire program without restarting it.
+L<Modules|Evented::API::Module> are Perl packages which can be easily loaded,
+unloaded, and reloaded. API Engine automatically tracks the changes made by each
+module and reverts them upon unload, leaving no trace. With API Engine used
+properly, it is even possible to reload your entire program without restarting
+it.
 
 Modules themselves can determine the necessity of additional code which may be
 dynamically added and removed through the use of submodules.
@@ -101,11 +102,11 @@ B<Parameters>
 
 =item *
 
-B<%opts>: a package whose event activity you're monitoring.
+B<%opts> - I<optional>, constructor options.
 
 =back
 
-B<%opts> - constructor options
+B<%opts> - API Engine options
 
 =over
 
@@ -133,6 +134,8 @@ turn enables this.
 
 =back
 
+B<Returns> API Engine.
+
 =head2 $api->load_modules(@mod_names)
 
 Loads one or more modules at once.
@@ -152,7 +155,7 @@ B<@mod_names> - list of module names to load
 
 B<Returns>
 
-Module objects for those which loaded successfully.
+L<Module objects|Evented::API::Module> for those which loaded successfully.
 
 =over
 
@@ -169,7 +172,7 @@ directories specified at API Engine construction time will be used.
 
 B<Returns>
 
-On success, the loaded module object. Otherwise, false.
+On success, the loaded L<module object|Evented::API::Module>. Otherwise, false.
 
 =head2 $api->unload_module($mod, $unload_dependents, $unload_parent)
 
@@ -272,7 +275,7 @@ B<$mod_name> - name of the module to find.
 
 B<Returns>
 
-Module object on success, false otherwise.
+L<Module object on success|Evented::API::Module>, false otherwise.
 
 =head2 $api->package_to_module($pkg)
 
@@ -290,7 +293,7 @@ B<$pkg> - Perl package name to find.
 
 B<Returns>
 
-Module object on success, false otherwise.
+L<Module object|Evented::API::Module> on success, false otherwise.
 
 =head2 $api->module_loaded($mod_name)
 

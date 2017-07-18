@@ -143,6 +143,10 @@ B<Returns> module full name.
 
 B<Returns> module's primary Perl package name.
 
+=head2 $mod->packages
+
+B<Returns> all packages associate with module.
+
 =head2 $mod->api
 
 B<Returns> associated L<API Engine | Evented::API::Engine>.

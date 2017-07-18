@@ -15,7 +15,7 @@ use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION = '4.08';
+our $VERSION = '4.09';
 
 use Evented::API::Module;
 use Evented::API::Events;
@@ -82,10 +82,11 @@ application capable of adapting dynamically with the user's ever-changing needs.
 
 =head2 Module management
 
-Modules are Perl packages which can be easily loaded, unloaded, and reloaded.
-API Engine automatically tracks the changes made by each module and reverts them
-upon unload, leaving no trace. With API Engine used properly, it is even
-possible to reload your entire program without restarting it.
+L<Modules|Evented::API::Module> are Perl packages which can be easily loaded,
+unloaded, and reloaded. API Engine automatically tracks the changes made by each
+module and reverts them upon unload, leaving no trace. With API Engine used
+properly, it is even possible to reload your entire program without restarting
+it.
 
 Modules themselves can determine the necessity of additional code which may be
 dynamically added and removed through the use of submodules.
@@ -124,11 +125,11 @@ B<Parameters>
 
 =item *
 
-B<%opts>: a package whose event activity you're monitoring.
+B<%opts> - I<optional>, constructor options.
 
 =back
 
-B<%opts> - constructor options
+B<%opts> - API Engine options
 
 =over
 
@@ -155,6 +156,8 @@ metadata files. your program should include a developer mode option which in
 turn enables this.
 
 =back
+
+B<Returns> API Engine.
 
 =cut
 
@@ -253,7 +256,7 @@ B<@mod_names> - list of module names to load
 
 B<Returns>
 
-Module objects for those which loaded successfully.
+L<Module objects|Evented::API::Module> for those which loaded successfully.
 
 =cut
 
@@ -303,7 +306,7 @@ directories specified at API Engine construction time will be used.
 
 B<Returns>
 
-On success, the loaded module object. Otherwise, false.
+On success, the loaded L<module object|Evented::API::Module>. Otherwise, false.
 
 =cut
 
@@ -1068,7 +1071,7 @@ B<$mod_name> - name of the module to find.
 
 B<Returns>
 
-Module object on success, false otherwise.
+L<Module object on success|Evented::API::Module>, false otherwise.
 
 =cut
 
@@ -1097,7 +1100,7 @@ B<$pkg> - Perl package name to find.
 
 B<Returns>
 
-Module object on success, false otherwise.
+L<Module object|Evented::API::Module> on success, false otherwise.
 
 =cut
 

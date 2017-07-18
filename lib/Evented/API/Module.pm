@@ -12,7 +12,7 @@ use parent 'Evented::Object';
 use Scalar::Util qw(blessed weaken);
 use List::Util qw(first);
 
-our $VERSION = '4.08';
+our $VERSION = '4.09';
 
 =head1 NAME
 
