@@ -658,4 +658,15 @@ sub dependent_companions {
     return @mods;
 }
 
+=head1 AUTHOR
+
+L<Mitchell Cooper|https://github.com/cooper> <cooper@cpan.org>
+
+Copyright E<copy> 2017. Released under New BSD license.
+
+Comments, complaints, and recommendations are accepted. Bugs may be reported on
+L<GitHub|https://github.com/cooper/evented-api-engine/issues>.
+
+=cut
+
 1;
