@@ -12,7 +12,7 @@ use parent 'Evented::Object';
 use Scalar::Util qw(blessed weaken);
 use List::Util qw(first);
 
-our $VERSION = '4.07';
+our $VERSION = '4.08';
 
 =head1 NAME
 
@@ -168,6 +168,10 @@ B<Returns> module full name.
 
 B<Returns> module's primary Perl package name.
 
+=head2 $mod->packages
+
+B<Returns> all packages associate with module.
+
 =head2 $mod->api
 
 B<Returns> associated L<API Engine | Evented::API::Engine>.
@@ -184,6 +188,7 @@ B<Returns> list of loaded submodules objects.
 
 sub name       { shift->{name}{full}            }   # full name
 sub package    { shift->{package}[0]            }   # main package
+sub packages   { @{ shift->{package} }          }   # all packages
 sub api        { shift->{api}                   }
 sub parent     { shift->{parent}                }
 sub submodules { @{ shift->{submodules} || [] } }
