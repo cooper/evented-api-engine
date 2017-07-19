@@ -34,9 +34,8 @@ my $build = $class->new(
         'Module::Loaded'    => '0.08',
         # Scalar::Util (nothing used unavailable in 5.10 core dist)
     },
-    recommends          => {},
-    build_requires      => {
-        'Pod::Select'   => 0,
+    configure_requires  => {
+        'Pod::Select'   => 0
     },
     auto_configure_requires => 0,
     license             => 'bsd',

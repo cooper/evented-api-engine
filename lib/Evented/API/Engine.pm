@@ -15,7 +15,7 @@ use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION = '4.09';
+our $VERSION = '4.10';
 
 use Evented::API::Module;
 use Evented::API::Events;
