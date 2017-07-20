@@ -208,8 +208,8 @@ Name of the unloaded module on success, otherwise false.
 
 Reloads a module.
 
-This is preferred over calling C<< ->unload_module() >> and C<< ->load_module >>
-for a few reasons:
+This is preferred over calling C<< ->unload_module() >> and
+C<< ->load_module() >> for a few reasons:
 
 =over
 
@@ -441,6 +441,21 @@ True if the requested feature is enabled.
 
 Used for logging associated with the API Engine. Use module C<< ->Log() >> for
 messages associated with a specific module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$msg> - text to log.
+
+=back
+
+=head2 $api->Debug($msg)
+
+Used for debug logging associated with the API Engine. Use module
+C<< ->Debug() >> for messages associated with a specific module.
 
 B<Parameters>
 

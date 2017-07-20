@@ -12,7 +12,7 @@ use parent 'Evented::Object';
 use Scalar::Util qw(blessed weaken);
 use Evented::Object::Hax qw(set_symbol);
 
-our $VERSION = '4.10';
+our $VERSION = '4.11';
 
 sub add_events {
     my $mod = shift;
@@ -86,7 +86,7 @@ sub mod_event_registered {
 
     # permanent (not managed)
     if ($cb->{permanent}) {
-        $mod->Log("Permanent event: $event_name ($$cb{name}) registered to $ref");
+        $mod->Debug("Permanent event: $event_name ($$cb{name}) registered to $ref");
         return;
     }
 
@@ -96,14 +96,14 @@ sub mod_event_registered {
     weaken($e->[0]);
 
     $mod->list_store_add('managed_events', $e);
-    $mod->Log("Event: $event_name ($$cb{name}) registered to $ref");
+    $mod->Debug("Event: $event_name ($$cb{name}) registered to $ref");
 }
 
 # on event delete, remove from managed event list
 sub mod_event_deleted {
     my ($mod, $fire, $eo, $event_name) = @_;
     my $ref = ref $eo;
-    $mod->Log("Event: $event_name (all callbacks) deleted from $ref");
+    $mod->Debug("Event: $event_name (all callbacks) deleted from $ref");
     $mod->list_store_remove_matches('managed_events', sub {
         my $e = shift;
         return 1 if not defined $e->[0];        # disposed, delete
@@ -117,7 +117,7 @@ sub mod_event_deleted {
 sub mod_callback_deleted {
     my ($mod, $fire, $eo, $event_name, $cb_name) = @_;
     my $ref = ref $eo;
-    $mod->Log("Event: $event_name ($cb_name) deleted from $ref");
+    $mod->Debug("Event: $event_name ($cb_name) deleted from $ref");
     $mod->list_store_remove_matches('managed_events', sub {
         my $e = shift;
         return 1 if !$e->[0];                   # disposed, delete
@@ -142,14 +142,14 @@ sub mod_unloaded {
 
         # first one
         if (!$indented) {
-            $mod->Log('Destroying managed event callbacks');
+            $mod->Debug('Destroying managed event callbacks');
             $mod->api->{indent}++;
             $indented++;
         }
 
         # delete this callback
         $eo->delete_callback($event_name, $name);
-        $mod->Log("Event: $event_name ($name) deleted from $ref");
+        $mod->Debug("Event: $event_name ($name) deleted from $ref");
 
     }
     $mod->api->{indent}-- if $indented;

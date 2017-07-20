@@ -15,7 +15,7 @@ use Module::Loaded qw(mark_as_loaded mark_as_unloaded is_loaded);
 use Evented::Object;
 use parent 'Evented::Object';
 
-our $VERSION = '4.10';
+our $VERSION = '4.11';
 
 use Evented::API::Module;
 use Evented::API::Events;
@@ -187,10 +187,13 @@ sub new {
     }, $class;
 
     # log subroutine.
-    $api->on(log => sub {
-        my $api = shift;
-        $api->{log_sub}(@_) if $api->{log_sub};
-    }, 'api.engine.logSub');
+    foreach my $level ('log', 'debug') {
+        my $key = "${level}_sub";
+        $api->on($level => sub {
+            my $api = shift;
+            $api->{$key}(@_) if $api->{$key};
+        }, 'api.engine.logSub');
+    }
 
     $api->_configure_api(%opts);
     return $api;
@@ -356,7 +359,7 @@ sub load_module {
     # LOCATE MODULE
     #------------------------
 
-    $api->Log($mod_name, "Searching for module: $search_dir/");
+    $api->Debug($mod_name, "Searching for module: $search_dir/");
 
     # the file name is the module name with :: mapped to /.
     # the "last name" of the module is the last portion of the filename.
@@ -387,7 +390,7 @@ sub load_module {
 
     # we located the module directory.
     # now we must ensure all required files are present.
-    $api->Log($mod_name, "Located module: $mod_dir");
+    $api->Debug($mod_name, "Located module: $mod_dir");
     foreach my $file ("$mod_last_name.pm") {
         next if -f "$mod_dir/$file";
         $api->Log($mod_name, "Load FAILED: Required file '$file' missing");
@@ -444,7 +447,8 @@ sub load_module {
 
     # the constructor returned bogus or nothing.
     if (!$mod || !$mod->isa('Evented::API::Module')) {
-        $api->Log($mod_name, "Constructor $constructor->new() failed");
+        $api->Log($mod_name,
+            "Load FAILED: Constructor $constructor->new() failed");
         _package_unload(@pkgs);
         return;
     }
@@ -466,7 +470,6 @@ sub load_module {
 
     # here we fire an event which will export symbols for convenient use
     # within the module packages. see Module.pm for defaults.
-    print "PKGS: @pkgs\n";
     $mod->fire(set_variables => $_) for @pkgs;
 
 
@@ -474,7 +477,7 @@ sub load_module {
     #------------------------
 
     my $return;
-    $mod->Log("Evaluating $mod_last_name.pm");
+    $mod->Debug("Evaluating $mod_last_name.pm");
     {
 
         # disable warnings on redefinition.
@@ -557,7 +560,7 @@ sub _load_module_requirements {
 
         # dependency already loaded.
         if ($api->module_loaded($dep_name)) {
-            $api->Log($mod_name,
+            $api->Debug($mod_name,
                 "Requirements: Dependency $dep_name already loaded");
             next;
         }
@@ -597,7 +600,7 @@ sub _get_module_info {
     # no file - start with an empty hash.
     my ($info, $use_manifest);
     if (!length $slurp) {
-        $api->Log($mod_name, "No JSON manifest found at $path");
+        $api->Debug($mod_name, "No JSON manifest found at $path");
         $info = {};
     }
 
@@ -605,7 +608,7 @@ sub _get_module_info {
     # something other than a JSON object.
     elsif (!($info = eval { $json->decode($slurp) }) || ref $info ne 'HASH') {
         $api->Log($mod_name, "Load FAILED: JSON parsing of $path failed: $@");
-        $api->Log($mod_name, "JSON text: $slurp");
+        $api->Debug($mod_name, "JSON text: $slurp");
         return;
     }
 
@@ -630,7 +633,7 @@ sub _get_module_info {
         return $info;
     }
 
-    $api->Log($mod_name, 'Scanning for metadata');
+    $api->Debug($mod_name, 'Scanning for metadata');
 
     # try reading comments.
     open my $fh, '<', "$mod_dir/$mod_last_name.pm"
@@ -854,7 +857,7 @@ sub unload_module {
 
     # if we're unloading recursively, do so now.
     if ($unload_dependents && @dependents) {
-        $mod->Log("Unloading dependent modules");
+        $mod->Log('Unloading dependent modules');
         $api->{indent}++;
             # ($unload_dependents, $unload_parent, $unloading_submodule, $reloading)
             $api->unload_module($_, 1, 1, undef, $reloading) for @dependents;
@@ -863,7 +866,7 @@ sub unload_module {
 
     # unload companion submodules that depend on this.
     if (my @companions = $mod->dependent_companions) {
-        $mod->Log("Unloading dependent companions");
+        $mod->Log('Unloading dependent companions');
         $api->{indent}++;
             $_->parent->unload_submodule($_, $reloading) for @companions;
         $api->{indent}--;
@@ -895,7 +898,7 @@ sub unload_module {
 
     # clear the symbol table of this module.
     # if preserve_sym is set and this is during reload, don't delete symbols.
-    $mod->Log("Destroying packages @{ $$mod{package} }");
+    $mod->Debug("Destroying packages @{ $$mod{package} }");
     _package_unload($mod->{package})
         unless $mod->{preserve_sym} && $reloading;
 
@@ -911,8 +914,8 @@ sub unload_module {
 
 Reloads a module.
 
-This is preferred over calling C<< ->unload_module() >> and C<< ->load_module >>
-for a few reasons:
+This is preferred over calling C<< ->unload_module() >> and
+C<< ->load_module() >> for a few reasons:
 
 =over
 
@@ -1352,23 +1355,40 @@ B<$msg> - text to log.
 
 =back
 
+=head2 $api->Debug($msg)
+
+Used for debug logging associated with the API Engine. Use module
+C<< ->Debug() >> for messages associated with a specific module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$msg> - text to log.
+
+=back
+
 =cut
 
 # API log.
-sub Log {
-    my ($api, $pfx, $msg) = @_;
+sub Log   { __log('log',   @_) }
+sub Debug { __log('debug', @_) }
+sub __log {
+    my ($level, $api, $pfx, $msg) = @_;
 
     # add the prefix.
     $msg = defined $msg ? "[$pfx] $msg" : $pfx;
 
     # log the first line.
     my @msgs = split $/, $msg;
-    $api->fire(log => ('    ' x $api->{indent}).shift(@msgs));
+    $api->fire($level => ('    ' x $api->{indent}).shift(@msgs));
 
     # log all other lines like "... text"
     my $i = $api->{indent} + 1;
     while (my $next = shift @msgs) {
-        $api->fire(log => ('    ' x $i)."... $next");
+        $api->fire($level => ('    ' x $i)."... $next");
     }
 
     return 1;

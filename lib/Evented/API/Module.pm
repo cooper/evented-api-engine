@@ -12,7 +12,7 @@ use parent 'Evented::Object';
 use Scalar::Util qw(blessed weaken);
 use List::Util qw(first);
 
-our $VERSION = '4.10';
+our $VERSION = '4.11';
 
 =head1 NAME
 
@@ -208,6 +208,22 @@ B<$msg> - text to log.
 
 =back
 
+=head2 $mod->Debug($msg)
+
+Used for debug logging associated with module.
+Use L<API Engine | Evented:API::Engine> C<< ->Debug() >> for messages not
+associated with a specific module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$msg> - text to log.
+
+=back
+
 =cut
 
 sub Log {
@@ -215,8 +231,14 @@ sub Log {
     $mod->api->Log($mod->name, "@_");
 }
 
+sub Debug {
+    my $mod = shift;
+    $mod->api->Debug($mod->name, "@_");
+}
+
+# compat
 sub _log;
-*_log = *Log;
+*_log = \&Log;
 
 =head2 $mod->get_symbol($sym)
 
