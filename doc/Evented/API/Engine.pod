@@ -1,0 +1,477 @@
+=head1 NAME
+
+B<Evented::API::Engine> - an Evented API Engine for Perl applications.
+
+=head1 SYNOPSIS
+
+Main
+
+    my $api = Evented::API::Engine->new;
+    $api->load_module('My::Module');
+
+My::Module
+
+    # Module metadata
+    #
+    # @name:        'My::Module'
+    # @package:     'M::My::Module'
+    # @description:
+    #
+    # @depends.modules+ 'Some::Other'
+    # @depends.modules+ 'Another::Yet'
+    #
+    # @author.name:     'Mitchell Cooper'
+    # @author.website:  'https://github.com/cooper'
+    #
+    package M::My::Module;
+    
+    use warnings;
+    use strict;
+    use 5.010;
+    
+    # Auto-exported variables
+    our ($api, $mod);
+    
+    # Default initializer
+    sub init {
+        say 'Loading ', $mod->name;
+        
+        # indicates load success
+        return 1;
+    }
+    
+    # Default deinitializer
+    sub void {
+        say 'Bye!';
+        
+        # indicates unload success
+        return 1;
+    }
+    
+    # Package must return module object
+    $mod;
+
+=head1 DESCRIPTION
+
+Perl provides a simple way to load dependencies. But what about upgrading or
+unloading? API Engine makes it easy to create an excessively versatile Perl
+application capable of adapting dynamically with the user's ever-changing needs.
+
+=head2 Module management
+
+L<Modules|Evented::API::Module> are Perl packages which can be easily loaded,
+unloaded, and reloaded. API Engine automatically tracks the changes made by each
+module and reverts them upon unload, leaving no trace. With API Engine used
+properly, it is even possible to reload your entire program without restarting
+it.
+
+Modules themselves can determine the necessity of additional code which may be
+dynamically added and removed through the use of submodules.
+
+=head2 Dependency resolution
+
+API Engine automatically resolves dependencies of both modules and normal Perl
+packages. It loads and unloads dependencies in the proper order. It is also
+possible to specify that a submodule is automatically loaded and unloaded in
+conjunction with some top-level module.
+
+=head2 Event management
+
+API Engine is I<Evented> in that it tracks all
+L<Evented::Object> callbacks attached
+from within modules and automatically removes them upon unloading. This allows
+you to employ events excessively without constantly worrying about their
+eventual disposal.
+
+=head1 METHODS
+
+=head2 Evented::API::Engine->new(%opts)
+
+Creates a new instance of the Evented API Engine. This single object will be
+used throughout the life of the application.
+
+    my $api = Evented::API::Engine->new(
+        mod_inc  => [ 'mod', '/usr/share/something/mod' ],
+        features => [ qw(io-async something-else)       ],
+        modules  => [ $conf->keys_for_block('modules')  ]
+    );
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<%opts> - I<optional>, constructor options.
+
+=back
+
+B<%opts> - API Engine options
+
+=over
+
+=item *
+
+B<\@mod_inc> - list of module search directories
+
+=item *
+
+B<\@features> - I<optional>, list of feature names to enable immediately
+
+=item *
+
+B<\@modules> - I<optional>, list of names of toplevel modules to load immediately
+
+=item *
+
+B<\&log_sub> - I<optional>, code to be called for API Engine log messages
+
+=item *
+
+B<$developer> - I<optional>, if true, module info will be written to JSON
+metadata files. your program should include a developer mode option which in
+turn enables this.
+
+=back
+
+B<Returns> API Engine.
+
+=head2 $api->load_modules(@mod_names)
+
+Loads one or more modules at once.
+
+This is preferred over calling C<< ->load_module() >> several times in a row
+because it skips common dependencies which have already been attempted.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<@mod_names> - list of module names to load
+
+=back
+
+B<Returns>
+
+L<Module objects|Evented::API::Module> for those which loaded successfully.
+
+=over
+
+=item *
+
+B<$mod_name> - name of the module to load.
+
+=item *
+
+B<\@dirs> - I<optional>, module search directories. if omitted, the normal search
+directories specified at API Engine construction time will be used.
+
+=back
+
+B<Returns>
+
+On success, the loaded L<module object|Evented::API::Module>. Otherwise, false.
+
+=head2 $api->unload_module($mod, $unload_dependents, $unload_parent)
+
+Unloads a module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$mod> - module object or name to unload.
+
+=item *
+
+B<$unload_dependents> - I<optional>, if true, modules dependent on the one
+being unloaded will also be unloaded. the normal behavior is to refuse to unload
+if dependent modules are loaded.
+
+=item *
+
+B<$unload_parent> - I<optional>, if true and the module being unloaded is a
+submodule, its parent will also be unloaded. the normal behavior is to refuse to
+unload if the requested module is a submodule.
+
+=back
+
+B<Returns>
+
+Name of the unloaded module on success, otherwise false.
+
+=head2 $api->reload_module($mod)
+
+Reloads a module.
+
+This is preferred over calling C<< ->unload_module() >> and
+C<< ->load_module() >> for a few reasons:
+
+=over
+
+=item *
+
+Some modules that do not allow permanent unloading may allow reloading.
+
+=item *
+
+Unchanged dependencies are not unloaded when reloading.
+
+=item *
+
+Some unchanged data can be retained during reload.
+
+=back
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$mod> - module object or name to reload.
+
+=back
+
+B<Returns>
+
+True on success.
+
+=head2 $api->reload_modules(@mods)
+
+Reloads one or more modules at once. See C<< ->reload_module() >>.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<@mods> - module objects or names to reload.
+
+=back
+
+B<Returns>
+
+Number of modules reloaded successfully, false if all failed.
+
+=head2 $api->get_module($mod_name)
+
+Fetches a loaded module object.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$mod_name> - name of the module to find.
+
+=back
+
+B<Returns>
+
+L<Module object on success|Evented::API::Module>, false otherwise.
+
+=head2 $api->package_to_module($pkg)
+
+Fetches a loaded module object by the corresponding Perl package name.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$pkg> - Perl package name to find.
+
+=back
+
+B<Returns>
+
+L<Module object|Evented::API::Module> on success, false otherwise.
+
+=head2 $api->module_loaded($mod_name)
+
+Returns true if the specified module is loaded.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$mod_name> - name of the module to find.
+
+=back
+
+B<Returns>
+
+True if the module is loaded.
+
+=head2 $api->store($key, $value)
+
+Stores a piece of data associated with the API Engine.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$key> - name for fetching data later.
+
+=item *
+
+B<$value> - value to store.
+
+=back
+
+=head2 $api->retrieve($key)
+
+Retrieves a piece of data associated with the API Engine.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$key> - name associated with data to fetch.
+
+=back
+
+B<Returns>
+
+Fetched data, undef if not found.
+
+=head2 $api->list_store_add($key, $value)
+
+Adds an entry to a list of data associated with the API Engine.
+
+=over
+
+=item *
+
+B<$key> - name for fetching data later.
+
+=item *
+
+B<$value> - value to add.
+
+=back
+
+=head2 $api->list_store_items($key)
+
+Fetches all values in a list associated with the API Engine.
+
+=over
+
+=item *
+
+B<$key> - name of the list to retrieve.
+
+=back
+
+B<Returns>
+
+List of fetch values, or empty list if none were found.
+
+=head2 $api->add_feature($feature)
+
+Enables a feature.
+
+Features are just a simple way for modules to determine whether a feature is
+provided by another module. For instance, if multiple modules provide different
+database backends, each of these could enable the database feature. Modules
+requiring a database would check for the feature enabled without having to know
+which module provides it.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$feature> - name of the feature to enable.
+
+=back
+
+=head2 $api->remove_feature($feature)
+
+Disables a feature.
+
+See C<< ->add_feature >> for an explanation of features.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$feature> - name of the feature to disable.
+
+=back
+
+=head2 $api->has_feature($feature)
+
+Returns true if the specified feature is enabled.
+
+See C<< ->add_feature >> for an explanation of features.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$feature> - name of the feature to find.
+
+=back
+
+B<Returns>
+
+True if the requested feature is enabled.
+
+=head2 $api->Log($msg)
+
+Used for logging associated with the API Engine. Use module C<< ->Log() >> for
+messages associated with a specific module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$msg> - text to log.
+
+=back
+
+=head2 $api->Debug($msg)
+
+Used for debug logging associated with the API Engine. Use module
+C<< ->Debug() >> for messages associated with a specific module.
+
+B<Parameters>
+
+=over
+
+=item *
+
+B<$msg> - text to log.
+
+=back
+
+=head1 AUTHOR
+
+L<Mitchell Cooper|https://github.com/cooper> <cooper@cpan.org>
+
+Copyright E<copy> 2017. Released under New BSD license.
+
+Comments, complaints, and recommendations are accepted. Bugs may be reported on
+L<GitHub|https://github.com/cooper/evented-api-engine/issues>.
